@@ -38,6 +38,10 @@ def config_dir(root: Path) -> Path:
     return root / CONFIG_DIR_NAME
 
 
+def artifacts_dir(root: Path) -> Path:
+    return config_dir(root) / "artifacts"
+
+
 def config_path(root: Path) -> Path:
     return config_dir(root) / CONFIG_FILE_NAME
 

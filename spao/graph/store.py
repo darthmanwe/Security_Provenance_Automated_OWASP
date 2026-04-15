@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from spao.models import GraphDocument
+from spao.sarif.models import Finding
 
 
 def ensure_runtime_dirs(root: Path) -> Path:
@@ -34,3 +35,25 @@ def load_graph(root: Path) -> GraphDocument:
         nodes=[GraphNode(**node) for node in data["nodes"]],
         edges=[GraphEdge(**edge) for edge in data["edges"]],
     )
+
+
+def findings_path(root: Path) -> Path:
+    return ensure_runtime_dirs(root) / "findings.latest.json"
+
+
+def save_findings(root: Path, findings: list[Finding], metadata: dict[str, object]) -> Path:
+    payload = {
+        "metadata": metadata,
+        "findings": [finding.to_dict() for finding in findings],
+    }
+    target = findings_path(root)
+    target.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=True) + "\n",
+        encoding="utf-8",
+    )
+    return target
+
+
+def load_findings(root: Path) -> tuple[dict[str, object], list[Finding]]:
+    data = json.loads(findings_path(root).read_text(encoding="utf-8"))
+    return data["metadata"], [Finding(**finding) for finding in data["findings"]]
