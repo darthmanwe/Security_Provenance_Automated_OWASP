@@ -7,12 +7,14 @@ from pathlib import Path
 from spao.config import SpaoConfig, save_config
 from spao.fix.apply import apply_fix
 from spao.fix.planner import build_fix_plan, save_fix_plan
+from spao.gitops.push import record_push
 from spao.graph.store import load_findings, save_findings, save_graph
 from spao.indexer.ingest import build_graph
 from spao.policy.catalog import enrich_findings, load_catalog
 from spao.sarif.parser import parse_sarif_file
 from spao.scanners.runner import run_scanners
 from spao.triage.service import summarize_findings
+from spao.verify.service import run_verification
 from spao.gitops.service import current_branch
 
 
@@ -162,6 +164,21 @@ def handle_fix_apply(target: str, approve: bool) -> int:
     return 0
 
 
+def handle_verify() -> int:
+    root = Path.cwd()
+    payload = run_verification(root)
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
+def handle_push() -> int:
+    root = Path.cwd()
+    payload = record_push(root)
+    payload["message"] = "Current branch pushed and push metadata recorded."
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -180,9 +197,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "fix" and args.fix_command == "apply":
             return handle_fix_apply(args.target, args.approve)
         if args.command == "verify":
-            return handle_stub("verify")
+            return handle_verify()
         if args.command == "push":
-            return handle_stub("push")
+            return handle_push()
     except RuntimeError as exc:
         print(json.dumps({"error": str(exc)}, indent=2))
         return 1

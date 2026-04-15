@@ -4,7 +4,7 @@
 
 ## Current status
 
-Step 6 is in place:
+Step 7 is in place:
 - Python package scaffold
 - CLI shell and config bootstrap
 - Git workflow helpers for branch, commit, and push operations
@@ -19,6 +19,8 @@ Step 6 is in place:
 - `spao fix plan <finding-id>` for GraphRAG-style context assembly
 - heuristic patch application and patch artifacts under `.spao/patches/`
 - `spao fix apply <finding-id> --approve` for lightweight human-approved remediation
+- `spao verify` for lightweight verification and finding-state updates
+- `spao push` for explicit branch publication metadata
 
 ## Planned commands
 
@@ -100,6 +102,18 @@ This is the current GraphRAG layer for the PoC: graph-backed context retrieval r
 
 The first implemented remediation heuristic replaces unsafe Python `eval()` usage with `literal_eval()` and adds the required import when possible.
 
+## Verification and push tracking
+
+`spao verify` now:
+- runs `python -m unittest discover -s tests -v`
+- records the latest verification output in `.spao/verify.latest.json`
+- updates normalized findings with `verification_passed` or `verification_failed`
+
+`spao push` now:
+- pushes the current branch through git
+- records branch push metadata in `.spao/push.latest.json`
+- updates normalized findings to `push_state = pushed`
+
 ## Supported languages
 
 The PoC targets:
@@ -109,8 +123,8 @@ The PoC targets:
 
 ## Step notes
 
-The current implementation now includes repository foundation, graph indexing, SARIF-backed finding normalization, layered OWASP taxonomy enrichment, deterministic fix planning, and lightweight patch application. Verification and explicit push tracking land in the next milestone.
+The current implementation now includes repository foundation, graph indexing, SARIF-backed finding normalization, layered OWASP taxonomy enrichment, deterministic fix planning, lightweight patch application, verification, and push tracking. Fixture hardening and final documentation land in the next milestone.
 
 ## Next step
 
-Implement verification commands and explicit push metadata tracking.
+Harden fixtures, add sample transcripts, and complete the final README pass.
