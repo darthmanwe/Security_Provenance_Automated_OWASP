@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import ast
 import hashlib
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 from spao.graph.schema import EDGE_TYPES, NODE_LABELS
+from spao.indexer.parsers import ParsedFile, parser_for_language
 from spao.models import GraphDocument, GraphEdge, GraphNode
 
 
@@ -64,50 +64,6 @@ def discover_git_tracked_files(root: Path) -> list[Path]:
     return files
 
 
-def _statement_ranges(content: str) -> list[tuple[int, int, str]]:
-    ranges: list[tuple[int, int, str]] = []
-    for line_number, line in enumerate(content.splitlines(), start=1):
-        stripped = line.strip()
-        if stripped:
-            ranges.append((line_number, line_number, stripped[:120]))
-    return ranges
-
-
-def _python_symbols(content: str) -> list[tuple[str, str, int, int]]:
-    tree = ast.parse(content)
-    symbols: list[tuple[str, str, int, int]] = []
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            end_line = getattr(node, "end_lineno", node.lineno)
-            symbols.append(("function", node.name, node.lineno, end_line))
-        elif isinstance(node, ast.ClassDef):
-            end_line = getattr(node, "end_lineno", node.lineno)
-            symbols.append(("class", node.name, node.lineno, end_line))
-    return symbols
-
-
-def _js_ts_symbols(content: str) -> list[tuple[str, str, int, int]]:
-    symbols: list[tuple[str, str, int, int]] = []
-    for line_number, line in enumerate(content.splitlines(), start=1):
-        stripped = line.strip()
-        if stripped.startswith("function "):
-            name = stripped.split("function ", 1)[1].split("(", 1)[0].strip()
-            symbols.append(("function", name or f"function_{line_number}", line_number, line_number))
-        elif stripped.startswith("class "):
-            name = stripped.split("class ", 1)[1].split("{", 1)[0].strip()
-            symbols.append(("class", name or f"class_{line_number}", line_number, line_number))
-        elif "=>" in stripped and ("const " in stripped or "let " in stripped):
-            name = stripped.split("=", 1)[0].replace("const ", "").replace("let ", "").strip()
-            symbols.append(("function", name or f"lambda_{line_number}", line_number, line_number))
-    return symbols
-
-
-def _extract_symbols(language: str, content: str) -> list[tuple[str, str, int, int]]:
-    if language == "python":
-        return _python_symbols(content)
-    return _js_ts_symbols(content)
-
-
 def _file_node(relative_path: str, language: str, content: str) -> GraphNode:
     return GraphNode(
         node_id=_stable_id("file", relative_path),
@@ -151,6 +107,7 @@ def build_graph(root: Path) -> GraphDocument:
         content = path.read_text(encoding="utf-8")
         relative_path = path.relative_to(root).as_posix()
         language = SUPPORTED_EXTENSIONS[path.suffix.lower()]
+        parsed_file = _parse_file(path, language, content)
         file_node = _file_node(relative_path, language, content)
         nodes.append(file_node)
         file_count += 1
@@ -197,16 +154,26 @@ def build_graph(root: Path) -> GraphDocument:
                 )
             previous_line_node_id = line_node.node_id
 
-        for symbol_kind, symbol_name, start_line, end_line in _extract_symbols(language, content):
+        for symbol in parsed_file.symbols:
             symbol_node = GraphNode(
-                node_id=_stable_id("symbol", relative_path, symbol_kind, symbol_name, start_line, end_line),
+                node_id=_stable_id(
+                    "symbol",
+                    relative_path,
+                    symbol.kind,
+                    symbol.name,
+                    symbol.line_start,
+                    symbol.line_end,
+                ),
                 label=NODE_LABELS["symbol"],
                 properties={
                     "file_path": relative_path,
-                    "kind": symbol_kind,
-                    "name": symbol_name,
-                    "line_start": start_line,
-                    "line_end": end_line,
+                    "kind": symbol.kind,
+                    "name": symbol.name,
+                    "line_start": symbol.line_start,
+                    "line_end": symbol.line_end,
+                    "container_kind": symbol.container_kind,
+                    "container_name": symbol.container_name,
+                    "is_exported": symbol.is_exported,
                 },
             )
             nodes.append(symbol_node)
@@ -220,15 +187,24 @@ def build_graph(root: Path) -> GraphDocument:
                 )
             )
 
-        for start_line, end_line, preview in _statement_ranges(content):
+        for statement in parsed_file.statements:
             statement_node = GraphNode(
-                node_id=_stable_id("statement", relative_path, start_line, end_line),
+                node_id=_stable_id(
+                    "statement",
+                    relative_path,
+                    statement.kind,
+                    statement.line_start,
+                    statement.line_end,
+                ),
                 label=NODE_LABELS["statement"],
                 properties={
                     "file_path": relative_path,
-                    "line_start": start_line,
-                    "line_end": end_line,
-                    "preview": preview,
+                    "line_start": statement.line_start,
+                    "line_end": statement.line_end,
+                    "preview": statement.preview,
+                    "kind": statement.kind,
+                    "container_kind": statement.container_kind,
+                    "container_name": statement.container_name,
                 },
             )
             nodes.append(statement_node)
@@ -253,3 +229,8 @@ def build_graph(root: Path) -> GraphDocument:
         nodes=nodes,
         edges=edges,
     )
+
+
+def _parse_file(path: Path, language: str, content: str) -> ParsedFile:
+    parser = parser_for_language(language)
+    return parser.parse(path, language, content)

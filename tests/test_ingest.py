@@ -27,13 +27,49 @@ class IngestCommandTests(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
+            (repo / "handler.js").write_text(
+                textwrap.dedent(
+                    """
+                    export class Widget {
+                        render() {
+                            return "ok";
+                        }
+                    }
+
+                    const format = (value) => value.trim();
+                    """
+                ).strip()
+                + "\n",
+                encoding="utf-8",
+            )
             (repo / "handler.ts").write_text(
-                "export function handle(): string { return 'ok'; }\n",
+                textwrap.dedent(
+                    """
+                    export function handle(): string {
+                        return "ok";
+                    }
+
+                    const pick = (value: string) => value.toUpperCase();
+                    """
+                ).strip()
+                + "\n",
                 encoding="utf-8",
             )
 
             subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
             subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.email", "tests@example.com"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Test User"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+            )
             subprocess.run(
                 ["git", "commit", "-m", "seed"],
                 cwd=repo,
@@ -71,7 +107,38 @@ class IngestCommandTests(unittest.TestCase):
             self.assertIn("File", labels)
             self.assertIn("LineSpan", labels)
             self.assertIn("Symbol", labels)
-            self.assertGreaterEqual(graph["metadata"]["indexed_files"], 2)
+            self.assertGreaterEqual(graph["metadata"]["indexed_files"], 3)
+
+            symbols = [
+                node["properties"]
+                for node in graph["nodes"]
+                if node["label"] == "Symbol"
+            ]
+            js_class = next(
+                symbol for symbol in symbols if symbol["file_path"] == "handler.js" and symbol["name"] == "Widget"
+            )
+            self.assertEqual(js_class["kind"], "class")
+            self.assertTrue(js_class["is_exported"])
+
+            js_method = next(
+                symbol for symbol in symbols if symbol["file_path"] == "handler.js" and symbol["name"] == "render"
+            )
+            self.assertEqual(js_method["container_name"], "Widget")
+
+            ts_arrow = next(
+                symbol for symbol in symbols if symbol["file_path"] == "handler.ts" and symbol["name"] == "pick"
+            )
+            self.assertEqual(ts_arrow["kind"], "function")
+
+            statements = [
+                node["properties"]
+                for node in graph["nodes"]
+                if node["label"] == "Statement" and node["properties"]["file_path"] == "handler.ts"
+            ]
+            return_statement = next(
+                statement for statement in statements if statement["kind"] == "ReturnStatement"
+            )
+            self.assertEqual(return_statement["container_name"], "handle")
 
 
 if __name__ == "__main__":
