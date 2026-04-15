@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spao"
+version = "0.1.0"
+description = "Security Provenance Automated OWASP proof-of-concept CLI"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+  { name = "OpenAI Codex" }
+]
+dependencies = []
+
+[project.scripts]
+spao = "spao.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["spao*"]
