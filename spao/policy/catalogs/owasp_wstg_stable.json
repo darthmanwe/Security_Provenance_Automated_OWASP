@@ -1,0 +1,13 @@
+[
+  {"id": "wstg:INFO", "title": "Information Gathering", "source": "owasp_wstg", "aliases": ["WSTG-INFO"], "cwe_refs": ["CWE-200"]},
+  {"id": "wstg:CONF", "title": "Configuration and Deployment Management Testing", "source": "owasp_wstg", "aliases": ["WSTG-CONF"], "cwe_refs": ["CWE-16", "CWE-614"]},
+  {"id": "wstg:IDNT", "title": "Identity Management Testing", "source": "owasp_wstg", "aliases": ["WSTG-IDNT"], "cwe_refs": ["CWE-287", "CWE-798"]},
+  {"id": "wstg:ATHN", "title": "Authentication Testing", "source": "owasp_wstg", "aliases": ["WSTG-ATHN"], "cwe_refs": ["CWE-287", "CWE-307"]},
+  {"id": "wstg:ATHZ", "title": "Authorization Testing", "source": "owasp_wstg", "aliases": ["WSTG-ATHZ"], "cwe_refs": ["CWE-285", "CWE-639", "CWE-862"]},
+  {"id": "wstg:SESS", "title": "Session Management Testing", "source": "owasp_wstg", "aliases": ["WSTG-SESS"], "cwe_refs": ["CWE-384", "CWE-613"]},
+  {"id": "wstg:INPV", "title": "Input Validation Testing", "source": "owasp_wstg", "aliases": ["WSTG-INPV"], "cwe_refs": ["CWE-20", "CWE-79", "CWE-89", "CWE-95"]},
+  {"id": "wstg:ERRH", "title": "Error Handling Testing", "source": "owasp_wstg", "aliases": ["WSTG-ERRH"], "cwe_refs": ["CWE-209", "CWE-778"]},
+  {"id": "wstg:CRYP", "title": "Cryptography Testing", "source": "owasp_wstg", "aliases": ["WSTG-CRYP"], "cwe_refs": ["CWE-319", "CWE-327", "CWE-331"]},
+  {"id": "wstg:BUSL", "title": "Business Logic Testing", "source": "owasp_wstg", "aliases": ["WSTG-BUSL"], "cwe_refs": ["CWE-841"]},
+  {"id": "wstg:CLNT", "title": "Client-side Testing", "source": "owasp_wstg", "aliases": ["WSTG-CLNT"], "cwe_refs": ["CWE-79"]}
+]

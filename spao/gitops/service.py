@@ -39,3 +39,9 @@ def current_branch(repo_root: Path) -> str:
 def ensure_clean_message(result: GitResult) -> None:
     if result.returncode != 0:
         raise RuntimeError(result.stderr or "Git command failed.")
+
+
+def push_current_branch(repo_root: Path) -> GitResult:
+    result = run_git(repo_root, "push")
+    ensure_clean_message(result)
+    return result

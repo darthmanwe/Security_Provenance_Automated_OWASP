@@ -1,0 +1,16 @@
+[
+  {"id": "asvs-5:V1", "title": "Architecture, Design and Threat Modeling", "source": "owasp_asvs", "aliases": ["V1"], "cwe_refs": ["CWE-602", "CWE-693"]},
+  {"id": "asvs-5:V2", "title": "Secure Software Development Lifecycle", "source": "owasp_asvs", "aliases": ["V2"], "cwe_refs": ["CWE-1104"]},
+  {"id": "asvs-5:V3", "title": "Authentication", "source": "owasp_asvs", "aliases": ["V3"], "cwe_refs": ["CWE-287", "CWE-307", "CWE-798"]},
+  {"id": "asvs-5:V4", "title": "Access Control", "source": "owasp_asvs", "aliases": ["V4"], "cwe_refs": ["CWE-285", "CWE-639", "CWE-862"]},
+  {"id": "asvs-5:V5", "title": "Validation, Sanitization and Encoding", "source": "owasp_asvs", "aliases": ["V5"], "cwe_refs": ["CWE-20", "CWE-74", "CWE-79", "CWE-89", "CWE-95"]},
+  {"id": "asvs-5:V6", "title": "Stored Cryptography", "source": "owasp_asvs", "aliases": ["V6"], "cwe_refs": ["CWE-327", "CWE-331", "CWE-338", "CWE-522"]},
+  {"id": "asvs-5:V7", "title": "Error Handling and Logging", "source": "owasp_asvs", "aliases": ["V7"], "cwe_refs": ["CWE-117", "CWE-209", "CWE-778"]},
+  {"id": "asvs-5:V8", "title": "Data Protection", "source": "owasp_asvs", "aliases": ["V8"], "cwe_refs": ["CWE-200", "CWE-312", "CWE-359"]},
+  {"id": "asvs-5:V9", "title": "Communication", "source": "owasp_asvs", "aliases": ["V9"], "cwe_refs": ["CWE-319"]},
+  {"id": "asvs-5:V10", "title": "Malicious Code and Deserialization", "source": "owasp_asvs", "aliases": ["V10"], "cwe_refs": ["CWE-502", "CWE-94", "CWE-95"]},
+  {"id": "asvs-5:V11", "title": "Business Logic", "source": "owasp_asvs", "aliases": ["V11"], "cwe_refs": ["CWE-841"]},
+  {"id": "asvs-5:V12", "title": "Files and Resources", "source": "owasp_asvs", "aliases": ["V12"], "cwe_refs": ["CWE-22", "CWE-23", "CWE-73", "CWE-918"]},
+  {"id": "asvs-5:V13", "title": "API and Web Service", "source": "owasp_asvs", "aliases": ["V13"], "cwe_refs": ["CWE-285", "CWE-444", "CWE-918"]},
+  {"id": "asvs-5:V14", "title": "Configuration", "source": "owasp_asvs", "aliases": ["V14"], "cwe_refs": ["CWE-16", "CWE-611", "CWE-614"]}
+]
