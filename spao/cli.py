@@ -7,6 +7,7 @@ from pathlib import Path
 from spao.config import SpaoConfig, save_config
 from spao.graph.store import load_findings, save_findings, save_graph
 from spao.indexer.ingest import build_graph
+from spao.policy.catalog import enrich_findings, load_catalog
 from spao.sarif.parser import parse_sarif_file
 from spao.scanners.runner import run_scanners
 from spao.triage.service import summarize_findings
@@ -104,11 +105,13 @@ def handle_analyze(args: argparse.Namespace) -> int:
             findings.extend(parse_sarif_file(Path(artifact.path)))
             parsed_sources.append(artifact.path)
 
+    findings = enrich_findings(findings)
     summary = summarize_findings(findings)
     metadata = {
         "sources": parsed_sources,
         "scanner_artifacts": [artifact.to_dict() for artifact in scanner_artifacts],
         "summary": summary,
+        "policy_entries": len(load_catalog()),
     }
     output_path = save_findings(root, findings, metadata)
     payload = {

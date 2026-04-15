@@ -1,0 +1,12 @@
+[
+  {"id": "owasp-api-2023:API1", "title": "Broken Object Level Authorization", "source": "owasp_api_top10", "aliases": ["API1", "owasp-api:api1"], "cwe_refs": ["CWE-285", "CWE-639"]},
+  {"id": "owasp-api-2023:API2", "title": "Broken Authentication", "source": "owasp_api_top10", "aliases": ["API2", "owasp-api:api2"], "cwe_refs": ["CWE-287", "CWE-307", "CWE-798"]},
+  {"id": "owasp-api-2023:API3", "title": "Broken Object Property Level Authorization", "source": "owasp_api_top10", "aliases": ["API3", "owasp-api:api3"], "cwe_refs": ["CWE-915"]},
+  {"id": "owasp-api-2023:API4", "title": "Unrestricted Resource Consumption", "source": "owasp_api_top10", "aliases": ["API4", "owasp-api:api4"], "cwe_refs": ["CWE-400", "CWE-770"]},
+  {"id": "owasp-api-2023:API5", "title": "Broken Function Level Authorization", "source": "owasp_api_top10", "aliases": ["API5", "owasp-api:api5"], "cwe_refs": ["CWE-285", "CWE-862"]},
+  {"id": "owasp-api-2023:API6", "title": "Unrestricted Access to Sensitive Business Flows", "source": "owasp_api_top10", "aliases": ["API6", "owasp-api:api6"], "cwe_refs": ["CWE-841"]},
+  {"id": "owasp-api-2023:API7", "title": "Server Side Request Forgery", "source": "owasp_api_top10", "aliases": ["API7", "owasp-api:api7"], "cwe_refs": ["CWE-918"]},
+  {"id": "owasp-api-2023:API8", "title": "Security Misconfiguration", "source": "owasp_api_top10", "aliases": ["API8", "owasp-api:api8"], "cwe_refs": ["CWE-16", "CWE-611"]},
+  {"id": "owasp-api-2023:API9", "title": "Improper Inventory Management", "source": "owasp_api_top10", "aliases": ["API9", "owasp-api:api9"], "cwe_refs": ["CWE-1059"]},
+  {"id": "owasp-api-2023:API10", "title": "Unsafe Consumption of APIs", "source": "owasp_api_top10", "aliases": ["API10", "owasp-api:api10"], "cwe_refs": ["CWE-444", "CWE-829"]}
+]

@@ -4,7 +4,7 @@
 
 ## Current status
 
-Step 3 is in place:
+Step 4 is in place:
 - Python package scaffold
 - CLI shell and config bootstrap
 - Git workflow helpers for branch, commit, and push operations
@@ -13,6 +13,8 @@ Step 3 is in place:
 - code graph schema with repo, snapshot, file, line, symbol, and statement nodes
 - `spao analyze` for SARIF-backed finding normalization
 - `spao findings list` for reading the current normalized finding set
+- layered OWASP, ASVS, WSTG, and Cheat Sheet policy catalogs
+- CWE-driven policy enrichment for normalized findings
 
 ## Planned commands
 
@@ -58,6 +60,21 @@ This keeps line-level provenance while still giving findings a semantic owner be
 
 `spao findings list` reads the latest normalized artifact and prints the structured result for downstream policy enrichment and fix planning.
 
+## Policy coverage
+
+The PoC now ships curated policy packs for:
+- OWASP Top 10 (web)
+- OWASP API Security Top 10:2023
+- OWASP Mobile Top 10:2024
+- OWASP ASVS 5 section families
+- OWASP WSTG stable testing families
+- OWASP Cheat Sheet remediation links
+
+Findings are enriched by:
+- direct OWASP aliases already present in scanner tags
+- CWE crosswalks that map findings into OWASP, ASVS, and WSTG references
+- remediation links derived from the Cheat Sheet catalog
+
 ## Supported languages
 
 The PoC targets:
@@ -67,8 +84,8 @@ The PoC targets:
 
 ## Step notes
 
-The current implementation now includes repository foundation, graph indexing, and SARIF-backed finding normalization. OWASP taxonomy loading and fix generation land in the next milestones.
+The current implementation now includes repository foundation, graph indexing, SARIF-backed finding normalization, and layered OWASP taxonomy enrichment. Fix planning and patch generation land in the next milestones.
 
 ## Next step
 
-Implement layered OWASP policy catalogs and enrich findings with normalized policy references.
+Implement deterministic graph retrieval and the first fix planning workflow.

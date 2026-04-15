@@ -101,7 +101,10 @@ class AnalyzeCommandTests(unittest.TestCase):
             self.assertEqual(finding["tool"], "semgrep")
             self.assertEqual(finding["severity"], "high")
             self.assertIn("CWE-95", finding["cwe_refs"])
-            self.assertIn("owasp-top-10:a03-injection", finding["owasp_refs"])
+            self.assertIn("owasp-top10-2021:A03", finding["owasp_refs"])
+            self.assertIn("asvs-5:V5", finding["asvs_refs"])
+            self.assertIn("wstg:INPV", finding["wstg_refs"])
+            self.assertTrue(finding["remediation_refs"])
 
 
 if __name__ == "__main__":

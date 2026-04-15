@@ -1,0 +1,12 @@
+[
+  {"id": "owasp-mobile-2024:M1", "title": "Improper Credential Usage", "source": "owasp_mobile_top10", "aliases": ["M1"], "cwe_refs": ["CWE-798", "CWE-259"]},
+  {"id": "owasp-mobile-2024:M2", "title": "Inadequate Supply Chain Security", "source": "owasp_mobile_top10", "aliases": ["M2"], "cwe_refs": ["CWE-829", "CWE-1104"]},
+  {"id": "owasp-mobile-2024:M3", "title": "Insecure Authentication and Authorization", "source": "owasp_mobile_top10", "aliases": ["M3"], "cwe_refs": ["CWE-287", "CWE-285"]},
+  {"id": "owasp-mobile-2024:M4", "title": "Insufficient Input and Output Validation", "source": "owasp_mobile_top10", "aliases": ["M4"], "cwe_refs": ["CWE-20", "CWE-79", "CWE-89", "CWE-95"]},
+  {"id": "owasp-mobile-2024:M5", "title": "Insecure Communication", "source": "owasp_mobile_top10", "aliases": ["M5"], "cwe_refs": ["CWE-319", "CWE-327"]},
+  {"id": "owasp-mobile-2024:M6", "title": "Inadequate Privacy Controls", "source": "owasp_mobile_top10", "aliases": ["M6"], "cwe_refs": ["CWE-200", "CWE-359"]},
+  {"id": "owasp-mobile-2024:M7", "title": "Insufficient Binary Protections", "source": "owasp_mobile_top10", "aliases": ["M7"], "cwe_refs": ["CWE-693"]},
+  {"id": "owasp-mobile-2024:M8", "title": "Security Misconfiguration", "source": "owasp_mobile_top10", "aliases": ["M8"], "cwe_refs": ["CWE-16", "CWE-614"]},
+  {"id": "owasp-mobile-2024:M9", "title": "Insecure Data Storage", "source": "owasp_mobile_top10", "aliases": ["M9"], "cwe_refs": ["CWE-312", "CWE-922"]},
+  {"id": "owasp-mobile-2024:M10", "title": "Insufficient Cryptography", "source": "owasp_mobile_top10", "aliases": ["M10"], "cwe_refs": ["CWE-327", "CWE-331", "CWE-338"]}
+]

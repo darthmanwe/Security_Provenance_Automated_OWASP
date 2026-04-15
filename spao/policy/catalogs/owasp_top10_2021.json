@@ -1,0 +1,12 @@
+[
+  {"id": "owasp-top10-2021:A01", "title": "Broken Access Control", "source": "owasp_top10", "aliases": ["A01", "owasp-top-10:a01-broken-access-control"], "cwe_refs": ["CWE-22", "CWE-23", "CWE-200", "CWE-284", "CWE-285", "CWE-352"]},
+  {"id": "owasp-top10-2021:A02", "title": "Cryptographic Failures", "source": "owasp_top10", "aliases": ["A02", "owasp-top-10:a02-cryptographic-failures"], "cwe_refs": ["CWE-259", "CWE-327", "CWE-331", "CWE-338", "CWE-522", "CWE-798"]},
+  {"id": "owasp-top10-2021:A03", "title": "Injection", "source": "owasp_top10", "aliases": ["A03", "owasp-top-10:a03-injection"], "cwe_refs": ["CWE-74", "CWE-77", "CWE-78", "CWE-79", "CWE-89", "CWE-90", "CWE-94", "CWE-95", "CWE-116", "CWE-917"]},
+  {"id": "owasp-top10-2021:A04", "title": "Insecure Design", "source": "owasp_top10", "aliases": ["A04", "owasp-top-10:a04-insecure-design"], "cwe_refs": ["CWE-209", "CWE-256", "CWE-501", "CWE-522", "CWE-602", "CWE-642"]},
+  {"id": "owasp-top10-2021:A05", "title": "Security Misconfiguration", "source": "owasp_top10", "aliases": ["A05", "owasp-top-10:a05-security-misconfiguration"], "cwe_refs": ["CWE-16", "CWE-611", "CWE-614", "CWE-942"]},
+  {"id": "owasp-top10-2021:A06", "title": "Vulnerable and Outdated Components", "source": "owasp_top10", "aliases": ["A06", "owasp-top-10:a06-vulnerable-and-outdated-components"], "cwe_refs": ["CWE-1104"]},
+  {"id": "owasp-top10-2021:A07", "title": "Identification and Authentication Failures", "source": "owasp_top10", "aliases": ["A07", "owasp-top-10:a07-identification-and-authentication-failures"], "cwe_refs": ["CWE-287", "CWE-290", "CWE-307", "CWE-384", "CWE-613", "CWE-798"]},
+  {"id": "owasp-top10-2021:A08", "title": "Software and Data Integrity Failures", "source": "owasp_top10", "aliases": ["A08", "owasp-top-10:a08-software-and-data-integrity-failures"], "cwe_refs": ["CWE-345", "CWE-353", "CWE-494", "CWE-829"]},
+  {"id": "owasp-top10-2021:A09", "title": "Security Logging and Monitoring Failures", "source": "owasp_top10", "aliases": ["A09", "owasp-top-10:a09-security-logging-and-monitoring-failures"], "cwe_refs": ["CWE-117", "CWE-223", "CWE-778"]},
+  {"id": "owasp-top10-2021:A10", "title": "Server-Side Request Forgery", "source": "owasp_top10", "aliases": ["A10", "owasp-top-10:a10-server-side-request-forgery"], "cwe_refs": ["CWE-918"]}
+]
