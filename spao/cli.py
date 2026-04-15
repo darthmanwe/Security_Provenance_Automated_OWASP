@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 
 from spao.config import SpaoConfig, config_path, save_config
+from spao.graph.store import save_graph
+from spao.indexer.ingest import build_graph
 from spao.gitops.service import current_branch
 
 
@@ -64,6 +66,19 @@ def handle_stub(command_name: str) -> int:
     return 0
 
 
+def handle_ingest() -> int:
+    root = Path.cwd()
+    document = build_graph(root)
+    output_path = save_graph(root, document)
+    payload = {
+        "message": "Repository indexed into the local graph artifact.",
+        "graph_path": str(output_path),
+        "metadata": document.metadata,
+    }
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -71,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "init":
         return handle_init(args)
     if args.command == "ingest":
-        return handle_stub("ingest")
+        return handle_ingest()
     if args.command == "analyze":
         return handle_stub("analyze")
     if args.command == "findings" and args.findings_command == "list":

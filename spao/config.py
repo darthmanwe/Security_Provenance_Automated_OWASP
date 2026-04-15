@@ -22,6 +22,16 @@ class SpaoConfig:
     scanners: list[str] = field(
         default_factory=lambda: ["semgrep", "ruff", "bandit", "eslint"]
     )
+    excluded_paths: list[str] = field(
+        default_factory=lambda: [
+            "node_modules",
+            ".venv",
+            "venv",
+            "dist",
+            "build",
+            "__pycache__",
+        ]
+    )
 
 
 def config_dir(root: Path) -> Path:
