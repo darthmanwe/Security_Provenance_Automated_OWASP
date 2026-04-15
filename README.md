@@ -4,7 +4,7 @@
 
 ## Current status
 
-Step 5 is in place:
+Step 6 is in place:
 - Python package scaffold
 - CLI shell and config bootstrap
 - Git workflow helpers for branch, commit, and push operations
@@ -17,6 +17,8 @@ Step 5 is in place:
 - CWE-driven policy enrichment for normalized findings
 - deterministic fix-plan evidence bundles under `.spao/fixplans/`
 - `spao fix plan <finding-id>` for GraphRAG-style context assembly
+- heuristic patch application and patch artifacts under `.spao/patches/`
+- `spao fix apply <finding-id> --approve` for lightweight human-approved remediation
 
 ## Planned commands
 
@@ -87,6 +89,17 @@ Findings are enriched by:
 
 This is the current GraphRAG layer for the PoC: graph-backed context retrieval remains deterministic, and the eventual patch generator will consume this bundle rather than searching the entire repo ad hoc.
 
+## Patch application
+
+`spao fix apply <finding-id> --approve` now:
+- requires explicit approval via `--approve`
+- rebuilds the evidence bundle for the target finding
+- runs a deterministic heuristic patch provider for supported cases
+- writes a `.diff` artifact and a JSON patch record into `.spao/patches/`
+- updates the normalized finding state to `patch_applied`
+
+The first implemented remediation heuristic replaces unsafe Python `eval()` usage with `literal_eval()` and adds the required import when possible.
+
 ## Supported languages
 
 The PoC targets:
@@ -96,8 +109,8 @@ The PoC targets:
 
 ## Step notes
 
-The current implementation now includes repository foundation, graph indexing, SARIF-backed finding normalization, layered OWASP taxonomy enrichment, and deterministic fix planning. Patch application and approval flow land in the next milestone.
+The current implementation now includes repository foundation, graph indexing, SARIF-backed finding normalization, layered OWASP taxonomy enrichment, deterministic fix planning, and lightweight patch application. Verification and explicit push tracking land in the next milestone.
 
 ## Next step
 
-Implement patch application and a lightweight approval workflow.
+Implement verification commands and explicit push metadata tracking.

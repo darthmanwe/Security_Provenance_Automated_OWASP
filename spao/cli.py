@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from spao.config import SpaoConfig, save_config
+from spao.fix.apply import apply_fix
 from spao.fix.planner import build_fix_plan, save_fix_plan
 from spao.graph.store import load_findings, save_findings, save_graph
 from spao.indexer.ingest import build_graph
@@ -150,6 +151,17 @@ def handle_fix_plan(target: str) -> int:
     return 0
 
 
+def handle_fix_apply(target: str, approve: bool) -> int:
+    root = Path.cwd()
+    result = apply_fix(root, target, approve)
+    payload = {
+        "message": "Patch applied for the requested finding.",
+        **result,
+    }
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -166,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "fix" and args.fix_command == "plan":
             return handle_fix_plan(args.target)
         if args.command == "fix" and args.fix_command == "apply":
-            return handle_stub(f"fix apply {args.target}")
+            return handle_fix_apply(args.target, args.approve)
         if args.command == "verify":
             return handle_stub("verify")
         if args.command == "push":
