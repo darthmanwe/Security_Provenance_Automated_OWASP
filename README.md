@@ -4,7 +4,7 @@
 
 ## Current status
 
-Step 4 is in place:
+Step 5 is in place:
 - Python package scaffold
 - CLI shell and config bootstrap
 - Git workflow helpers for branch, commit, and push operations
@@ -15,6 +15,8 @@ Step 4 is in place:
 - `spao findings list` for reading the current normalized finding set
 - layered OWASP, ASVS, WSTG, and Cheat Sheet policy catalogs
 - CWE-driven policy enrichment for normalized findings
+- deterministic fix-plan evidence bundles under `.spao/fixplans/`
+- `spao fix plan <finding-id>` for GraphRAG-style context assembly
 
 ## Planned commands
 
@@ -75,6 +77,16 @@ Findings are enriched by:
 - CWE crosswalks that map findings into OWASP, ASVS, and WSTG references
 - remediation links derived from the Cheat Sheet catalog
 
+## Fix planning
+
+`spao fix plan <finding-id>` now:
+- loads the current graph artifact and findings artifact
+- resolves the matching finding by ID or rule ID
+- collects nearby lines, matching symbols, sibling findings, and policy references
+- writes a deterministic evidence bundle to `.spao/fixplans/<finding>.json`
+
+This is the current GraphRAG layer for the PoC: graph-backed context retrieval remains deterministic, and the eventual patch generator will consume this bundle rather than searching the entire repo ad hoc.
+
 ## Supported languages
 
 The PoC targets:
@@ -84,8 +96,8 @@ The PoC targets:
 
 ## Step notes
 
-The current implementation now includes repository foundation, graph indexing, SARIF-backed finding normalization, and layered OWASP taxonomy enrichment. Fix planning and patch generation land in the next milestones.
+The current implementation now includes repository foundation, graph indexing, SARIF-backed finding normalization, layered OWASP taxonomy enrichment, and deterministic fix planning. Patch application and approval flow land in the next milestone.
 
 ## Next step
 
-Implement deterministic graph retrieval and the first fix planning workflow.
+Implement patch application and a lightweight approval workflow.

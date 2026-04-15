@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from spao.config import SpaoConfig, save_config
+from spao.fix.planner import build_fix_plan, save_fix_plan
 from spao.graph.store import load_findings, save_findings, save_graph
 from spao.indexer.ingest import build_graph
 from spao.policy.catalog import enrich_findings, load_catalog
@@ -134,26 +135,45 @@ def handle_findings_list() -> int:
     return 0
 
 
+def handle_fix_plan(target: str) -> int:
+    root = Path.cwd()
+    plan = build_fix_plan(root, target)
+    output_path = save_fix_plan(root, plan)
+    payload = {
+        "message": "Deterministic evidence bundle created for fix planning.",
+        "plan_path": str(output_path),
+        "finding_id": plan["finding"]["id"],
+        "symbol_count": len(plan["symbol_nodes"]),
+        "line_window_count": len(plan["line_window"]),
+    }
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "init":
-        return handle_init(args)
-    if args.command == "ingest":
-        return handle_ingest()
-    if args.command == "analyze":
-        return handle_analyze(args)
-    if args.command == "findings" and args.findings_command == "list":
-        return handle_findings_list()
-    if args.command == "fix" and args.fix_command == "plan":
-        return handle_stub(f"fix plan {args.target}")
-    if args.command == "fix" and args.fix_command == "apply":
-        return handle_stub(f"fix apply {args.target}")
-    if args.command == "verify":
-        return handle_stub("verify")
-    if args.command == "push":
-        return handle_stub("push")
+    try:
+        if args.command == "init":
+            return handle_init(args)
+        if args.command == "ingest":
+            return handle_ingest()
+        if args.command == "analyze":
+            return handle_analyze(args)
+        if args.command == "findings" and args.findings_command == "list":
+            return handle_findings_list()
+        if args.command == "fix" and args.fix_command == "plan":
+            return handle_fix_plan(args.target)
+        if args.command == "fix" and args.fix_command == "apply":
+            return handle_stub(f"fix apply {args.target}")
+        if args.command == "verify":
+            return handle_stub("verify")
+        if args.command == "push":
+            return handle_stub("push")
+    except RuntimeError as exc:
+        print(json.dumps({"error": str(exc)}, indent=2))
+        return 1
 
     parser.print_help()
     return 0
