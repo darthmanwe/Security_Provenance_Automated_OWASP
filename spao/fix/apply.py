@@ -24,9 +24,7 @@ def apply_fix(root: Path, target: str, approve: bool) -> dict[str, object]:
     proposal = provider.generate_patch(plan)
 
     file_path = root / str(plan["finding"]["file"])
-    original = file_path.read_text(encoding="utf-8")
-    updated = _apply_diff_heuristic(original, plan)
-    file_path.write_text(updated, encoding="utf-8")
+    file_path.write_text(proposal.updated_content, encoding="utf-8")
 
     patch_file = patches_dir(root) / f"{str(plan['finding']['id']).replace(':', '_')}.diff"
     patch_file.write_text(proposal.unified_diff, encoding="utf-8")
@@ -41,16 +39,12 @@ def apply_fix(root: Path, target: str, approve: bool) -> dict[str, object]:
 
     result = {
         "finding_id": plan["finding"]["id"],
+        "applied_findings": proposal.finding_ids,
         "file_path": str(file_path),
         "patch_path": str(patch_file),
         "rationale": proposal.rationale,
+        "remediation_family": proposal.remediation_family,
     }
     result_path = patches_dir(root) / f"{str(plan['finding']['id']).replace(':', '_')}.json"
     result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     return result
-
-
-def _apply_diff_heuristic(original: str, plan: dict[str, object]) -> str:
-    from spao.fix.providers import _rewrite_content
-
-    return _rewrite_content(original, plan["finding"])
