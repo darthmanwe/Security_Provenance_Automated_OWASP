@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from spao.approval.state import assign_sections, summarize_sections
 from spao.graph.store import load_findings, save_findings
 
 
@@ -29,7 +30,6 @@ def run_verification(root: Path) -> dict[str, object]:
         "stdout": completed.stdout,
         "stderr": completed.stderr,
     }
-    verify_path(root).write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
     metadata, findings = load_findings(root)
     updated = []
@@ -37,6 +37,11 @@ def run_verification(root: Path) -> dict[str, object]:
         finding.verification_state = (
             "verification_passed" if completed.returncode == 0 else "verification_failed"
         )
+        if finding.approval_state == "patch_applied" and completed.returncode == 0:
+            finding.approval_state = "verification_passed"
         updated.append(finding)
+    updated = assign_sections(updated)
     save_findings(root, updated, metadata)
+    summary["section_summary"] = summarize_sections(updated)
+    verify_path(root).write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     return summary

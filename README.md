@@ -15,8 +15,8 @@
   - OWASP WSTG family mappings
   - OWASP Cheat Sheet remediation links
   - CWE crosswalks
-- builds deterministic GraphRAG-style fix plans from graph and finding context
-- applies a first heuristic remediation for unsafe Python `eval()` usage when explicitly approved
+- builds deterministic GraphRAG-style fix plans from graph and finding context, preferring Neo4j-backed retrieval when configured
+- applies deterministic heuristic remediations for selected Python, JavaScript, and TypeScript rule families when explicitly approved
 - records verification and push metadata in the `.spao/` runtime directory
 
 ## Repository layout
@@ -138,10 +138,13 @@ This writes `.spao/fixplans/<finding>.json` with:
 - the original finding
 - nearby line window
 - enclosing symbols
+- nearby statements and graph edges
 - sibling findings in the same file
 - OWASP, ASVS, and WSTG references
 - remediation links
 - recommended next actions
+
+If `.spao/config.json` points to Neo4j and the configured password environment variable is set, fix planning retrieves evidence from Neo4j first and falls back to the JSON graph artifact otherwise.
 
 To include grouped file sections in the plan:
 
@@ -157,8 +160,10 @@ python -m spao fix apply <finding-id> --approve
 
 Current auto-remediation support:
 - Python `eval()` misuse with `CWE-95` or matching `eval` rule IDs
+- Python `yaml.load(...)` unsafe deserialization findings that can be rewritten to `yaml.safe_load(...)`
 - JavaScript and TypeScript literal `eval(...)` misuse that can be rewritten to `JSON.parse(...)`
 - JavaScript and TypeScript literal `new Function(...)()` misuse with JSON-safe return bodies
+- JavaScript and TypeScript string-based `setTimeout(...)` and `setInterval(...)` callbacks that can be rewritten to direct callback wrappers
 
 Grouped approval workflow:
 
@@ -187,6 +192,8 @@ python -m unittest discover -s tests -v
 And writes:
 - `.spao/verify.latest.json`
 
+Verification now records a section-aware summary and upgrades patched sections to verified status when the test run passes.
+
 ### 8. Push and record push metadata
 
 ```bash
@@ -195,6 +202,8 @@ python -m spao push
 
 This pushes the current branch and writes:
 - `.spao/push.latest.json`
+
+Push is now gated when any approved or applied section has not yet passed verification.
 
 ## Current OWASP policy model
 
@@ -229,7 +238,7 @@ This keeps the remediation pipeline inspectable and easier to trust during early
 
 ## Limitations
 
-- graph storage is still local JSON first even when Neo4j persistence is enabled
+- Neo4j-backed fix planning depends on local driver availability, a reachable server, and persisted graph data; the planner falls back to JSON when that path is unavailable
 - scanner execution beyond SARIF import is intentionally shallow
 - automatic remediation remains intentionally narrow and only supports deterministic low-ambiguity rewrite families
 - push behavior depends on local git authentication and remote access

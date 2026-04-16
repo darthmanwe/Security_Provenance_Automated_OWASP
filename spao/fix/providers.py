@@ -45,7 +45,9 @@ class HeuristicPatchProvider(LLMProvider):
     def __init__(self) -> None:
         self.families: list[RemediationFamily] = [
             PythonEvalRemediationFamily(),
+            PythonYamlLoadRemediationFamily(),
             JsTsDynamicExecutionRemediationFamily(),
+            JsTsTimerStringExecutionRemediationFamily(),
         ]
 
     def generate_patch(
@@ -130,6 +132,32 @@ class PythonEvalRemediationFamily(RemediationFamily):
         return "Replaced Python eval() with ast.literal_eval() for the supported CWE-95 remediation path."
 
 
+class PythonYamlLoadRemediationFamily(RemediationFamily):
+    family_name = "python_yaml_safe_load"
+    YAML_LOAD_PATTERN = re.compile(r"(?<![A-Za-z0-9_])yaml\.load\(")
+
+    def matches(self, finding: dict[str, object]) -> bool:
+        rule_id = str(finding["rule_id"]).lower()
+        cwe_refs = [str(item).upper() for item in finding.get("cwe_refs", [])]
+        file_name = str(finding["file"])
+        return file_name.endswith(".py") and (
+            "yaml" in rule_id or "deserial" in rule_id or "CWE-502" in cwe_refs
+        )
+
+    def rewrite_content(self, original: str, finding: dict[str, object]) -> str:
+        updated = _replace_on_target_line(
+            original,
+            int(finding["line_start"]),
+            lambda line: self.YAML_LOAD_PATTERN.sub("yaml.safe_load(", line, count=1),
+        )
+        if updated == original:
+            updated = self.YAML_LOAD_PATTERN.sub("yaml.safe_load(", original, count=1)
+        return updated
+
+    def rationale(self, finding: dict[str, object]) -> str:
+        return "Replaced yaml.load() with yaml.safe_load() for a bounded unsafe deserialization remediation."
+
+
 class JsTsDynamicExecutionRemediationFamily(RemediationFamily):
     family_name = "js_ts_dynamic_execution_literals"
 
@@ -188,6 +216,47 @@ class JsTsDynamicExecutionRemediationFamily(RemediationFamily):
         expression = body_match.group("expression").strip()
         _ensure_json_literal(expression)
         return f"JSON.parse({json.dumps(expression)})"
+
+
+class JsTsTimerStringExecutionRemediationFamily(RemediationFamily):
+    family_name = "js_ts_timer_string_callback"
+    TIMER_PATTERN = re.compile(
+        r"(?P<fn>setTimeout|setInterval)\(\s*(?P<literal>'(?:\\.|[^'])*'|\"(?:\\.|[^\"])*\")(?P<suffix>\s*,.*\))"
+    )
+    CALL_PATTERN = re.compile(r"(?P<callee>[A-Za-z_$][A-Za-z0-9_$.]*)\(\s*\)\s*;?\s*$")
+
+    def matches(self, finding: dict[str, object]) -> bool:
+        rule_id = str(finding["rule_id"]).lower()
+        cwe_refs = [str(item).upper() for item in finding.get("cwe_refs", [])]
+        file_name = str(finding["file"])
+        is_target_language = file_name.endswith(".js") or file_name.endswith(".ts")
+        return is_target_language and (
+            "settimeout" in rule_id
+            or "setinterval" in rule_id
+            or "timer" in rule_id
+            or ("CWE-95" in cwe_refs and ("timeout" in str(finding["message"]).lower() or "interval" in str(finding["message"]).lower()))
+        )
+
+    def rewrite_content(self, original: str, finding: dict[str, object]) -> str:
+        updated = _replace_on_target_line(
+            original,
+            int(finding["line_start"]),
+            lambda line: self.TIMER_PATTERN.sub(self._rewrite_timer_match, line, count=1),
+        )
+        if updated != original:
+            return updated
+        return self.TIMER_PATTERN.sub(self._rewrite_timer_match, original, count=1)
+
+    def rationale(self, finding: dict[str, object]) -> str:
+        return "Replaced string-based JavaScript/TypeScript timer execution with a direct callback wrapper."
+
+    def _rewrite_timer_match(self, match: re.Match[str]) -> str:
+        decoded = _decode_js_string_literal(match.group("literal"))
+        call_match = self.CALL_PATTERN.fullmatch(decoded.strip())
+        if call_match is None:
+            return match.group(0)
+        callee = call_match.group("callee")
+        return f"{match.group('fn')}(() => {callee}(){match.group('suffix')}"
 
 
 def _decode_js_string_literal(literal: str) -> str:

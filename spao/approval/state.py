@@ -68,13 +68,30 @@ def list_sections(findings: list[Finding]) -> list[dict[str, object]]:
                 "line_start": finding.line_start,
                 "line_end": finding.line_end,
                 "finding_ids": [],
+                "approval_states": [],
             },
         )
         section["line_start"] = min(int(section["line_start"]), finding.line_start)
         section["line_end"] = max(int(section["line_end"]), finding.line_end)
         section["finding_ids"].append(finding.id)
-        section["status"] = _section_status_from_strings([str(section["status"]), finding.section_status])
+        section["approval_states"].append(finding.approval_state)
+        section["status"] = _section_status_from_strings(list(section["approval_states"]))
+    for section in sections.values():
+        section.pop("approval_states", None)
     return sorted(sections.values(), key=lambda item: (str(item["file"]), int(item["line_start"])))
+
+
+def summarize_sections(findings: list[Finding]) -> dict[str, object]:
+    sections = list_sections(findings)
+    by_status: dict[str, int] = {}
+    for section in sections:
+        status = str(section["status"])
+        by_status[status] = by_status.get(status, 0) + 1
+    return {
+        "total": len(sections),
+        "by_status": by_status,
+        "sections": sections,
+    }
 
 
 def approve_section(findings: list[Finding], section_id: str) -> list[Finding]:
@@ -100,6 +117,22 @@ def require_section_approval(findings: list[Finding], section_id: str) -> None:
         )
 
 
+def require_push_ready(findings: list[Finding]) -> None:
+    findings = assign_sections(findings)
+    blocked_sections = [
+        section
+        for section in list_sections(findings)
+        if section["status"] in {"approved", "applied"}
+    ]
+    if not blocked_sections:
+        return
+    blocked_ids = ", ".join(str(section["section_id"]) for section in blocked_sections)
+    raise RuntimeError(
+        "Push is gated until approved or applied sections pass verification. "
+        f"Pending sections: {blocked_ids}"
+    )
+
+
 def _section_id(file_path: str, line_start: int, line_end: int) -> str:
     digest = hashlib.sha256(f"{file_path}:{line_start}:{line_end}".encode("utf-8")).hexdigest()[:12]
     return f"section:{digest}"
@@ -110,6 +143,10 @@ def _section_status(findings: list[Finding]) -> str:
 
 
 def _section_status_from_strings(states: list[str]) -> str:
+    if all(state == "ready_to_push" for state in states):
+        return "ready"
+    if all(state in {"verification_passed", "ready_to_push"} for state in states):
+        return "verified"
     if all(state in {"patch_applied", "verification_passed", "ready_to_push"} for state in states):
         return "applied"
     if all(state in {"section_approved", "patch_applied", "verification_passed", "ready_to_push"} for state in states):
