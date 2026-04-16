@@ -4,11 +4,13 @@ import argparse
 import json
 from pathlib import Path
 
-from spao.config import SpaoConfig, save_config
+from spao.config import SpaoConfig, load_config, save_config
 from spao.fix.apply import apply_fix
 from spao.fix.planner import build_fix_plan, save_fix_plan
 from spao.gitops.push import record_push
-from spao.graph.store import load_findings, save_findings, save_graph
+from spao.graph.backends import persist_document
+from spao.graph.queries import query_graph
+from spao.graph.store import load_findings, load_graph, save_findings, save_graph
 from spao.indexer.ingest import build_graph
 from spao.policy.catalog import enrich_findings, load_catalog
 from spao.sarif.parser import parse_sarif_file
@@ -32,7 +34,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override the inferred project name.",
     )
 
-    subparsers.add_parser("ingest", help="Stub for repo ingestion.")
+    ingest_parser = subparsers.add_parser("ingest", help="Index the repository into graph artifacts.")
+    ingest_parser.add_argument(
+        "--persist-neo4j",
+        action="store_true",
+        help="Also persist the generated graph into Neo4j using local SPAO config.",
+    )
     analyze_parser = subparsers.add_parser("analyze", help="Run or import scanner results.")
     analyze_parser.add_argument(
         "--sarif",
@@ -52,6 +59,14 @@ def build_parser() -> argparse.ArgumentParser:
     fix_apply = fix_subparsers.add_parser("apply", help="Apply a fix for a finding.")
     fix_apply.add_argument("target")
     fix_apply.add_argument("--approve", action="store_true")
+
+    graph_parser = subparsers.add_parser("graph", help="Graph inspection helpers.")
+    graph_subparsers = graph_parser.add_subparsers(dest="graph_command")
+    graph_query = graph_subparsers.add_parser("query", help="Query the current graph artifact.")
+    graph_query.add_argument("--kind", required=True, choices=["files", "symbols", "statements", "neighbors"])
+    graph_query.add_argument("--path", default=None)
+    graph_query.add_argument("--line-start", type=int, default=None)
+    graph_query.add_argument("--line-end", type=int, default=None)
 
     subparsers.add_parser("verify", help="Stub for project verification.")
     subparsers.add_parser("push", help="Stub for explicit push workflow.")
@@ -80,15 +95,26 @@ def handle_stub(command_name: str) -> int:
     return 0
 
 
-def handle_ingest() -> int:
+def handle_ingest(persist_neo4j: bool) -> int:
     root = Path.cwd()
     document = build_graph(root)
     output_path = save_graph(root, document)
+    persistence: dict[str, object] | None = None
+    if persist_neo4j:
+        config = load_config(root)
+        result = persist_document(document, config)
+        persistence = {
+            "backend": result.backend,
+            "node_count": result.node_count,
+            "edge_count": result.edge_count,
+        }
     payload = {
         "message": "Repository indexed into the local graph artifact.",
         "graph_path": str(output_path),
         "metadata": document.metadata,
     }
+    if persistence is not None:
+        payload["persistence"] = persistence
     print(json.dumps(payload, indent=2))
     return 0
 
@@ -134,6 +160,20 @@ def handle_findings_list() -> int:
         "metadata": metadata,
         "findings": [finding.to_dict() for finding in findings],
     }
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
+def handle_graph_query(kind: str, path: str | None, line_start: int | None, line_end: int | None) -> int:
+    root = Path.cwd()
+    document = load_graph(root)
+    payload = query_graph(
+        document,
+        kind=kind,
+        path=path,
+        line_start=line_start,
+        line_end=line_end,
+    )
     print(json.dumps(payload, indent=2))
     return 0
 
@@ -187,11 +227,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "init":
             return handle_init(args)
         if args.command == "ingest":
-            return handle_ingest()
+            return handle_ingest(args.persist_neo4j)
         if args.command == "analyze":
             return handle_analyze(args)
         if args.command == "findings" and args.findings_command == "list":
             return handle_findings_list()
+        if args.command == "graph" and args.graph_command == "query":
+            return handle_graph_query(args.kind, args.path, args.line_start, args.line_end)
         if args.command == "fix" and args.fix_command == "plan":
             return handle_fix_plan(args.target)
         if args.command == "fix" and args.fix_command == "apply":
