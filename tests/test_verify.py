@@ -7,6 +7,10 @@ import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
+
+from spao.gitops.push import record_push
+from spao.gitops.service import GitResult
 
 
 SARIF_FIXTURE = {
@@ -94,6 +98,110 @@ class VerifyCommandTests(unittest.TestCase):
             self.assertEqual(findings["findings"][0]["verification_state"], "verification_passed")
             verify_payload = json.loads((repo / ".spao" / "verify.latest.json").read_text(encoding="utf-8"))
             self.assertTrue(verify_payload["passed"])
+            self.assertIn("section_summary", verify_payload)
+
+    def test_push_is_gated_until_applied_sections_are_verified(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            repo = Path(tmp_dir) / "demo"
+            repo.mkdir()
+            (repo / ".spao").mkdir()
+            findings_payload = {
+                "metadata": {"summary": {"total": 1}},
+                "findings": [
+                    {
+                        "id": "finding-1",
+                        "tool": "semgrep",
+                        "rule_id": "python.lang.security.audit.eval-detected.eval-detected",
+                        "title": "eval detected",
+                        "message": "Avoid eval().",
+                        "language": "python",
+                        "file": "app.py",
+                        "line_start": 1,
+                        "line_end": 1,
+                        "symbol": "run",
+                        "severity": "error",
+                        "confidence": "high",
+                        "fingerprint": "abc123",
+                        "cwe_refs": ["CWE-95"],
+                        "owasp_refs": [],
+                        "asvs_refs": [],
+                        "wstg_refs": [],
+                        "evidence_subgraph_id": None,
+                        "remediation_refs": [],
+                        "approval_state": "patch_applied",
+                        "section_id": None,
+                        "section_status": "pending",
+                        "grouped_finding_ids": [],
+                        "verification_state": "not_run",
+                        "push_state": "not_pushed",
+                    }
+                ],
+            }
+            (repo / ".spao" / "findings.latest.json").write_text(
+                json.dumps(findings_payload, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "Push is gated"):
+                record_push(repo)
+
+    def test_push_marks_verified_sections_ready(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            repo = Path(tmp_dir) / "demo"
+            repo.mkdir()
+            (repo / ".spao").mkdir()
+            findings_payload = {
+                "metadata": {"summary": {"total": 1}},
+                "findings": [
+                    {
+                        "id": "finding-1",
+                        "tool": "semgrep",
+                        "rule_id": "python.lang.security.audit.eval-detected.eval-detected",
+                        "title": "eval detected",
+                        "message": "Avoid eval().",
+                        "language": "python",
+                        "file": "app.py",
+                        "line_start": 1,
+                        "line_end": 1,
+                        "symbol": "run",
+                        "severity": "error",
+                        "confidence": "high",
+                        "fingerprint": "abc123",
+                        "cwe_refs": ["CWE-95"],
+                        "owasp_refs": [],
+                        "asvs_refs": [],
+                        "wstg_refs": [],
+                        "evidence_subgraph_id": None,
+                        "remediation_refs": [],
+                        "approval_state": "verification_passed",
+                        "section_id": None,
+                        "section_status": "pending",
+                        "grouped_finding_ids": [],
+                        "verification_state": "verification_passed",
+                        "push_state": "not_pushed",
+                    }
+                ],
+            }
+            (repo / ".spao" / "findings.latest.json").write_text(
+                json.dumps(findings_payload, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            with patch("spao.gitops.push.push_current_branch") as push_current_branch:
+                with patch("spao.gitops.push.current_branch", return_value="main"):
+                    push_current_branch.return_value = GitResult(
+                        command=["git", "push"],
+                        returncode=0,
+                        stdout="pushed",
+                        stderr="",
+                    )
+                    payload = record_push(repo)
+
+            self.assertEqual(payload["branch"], "main")
+            self.assertIn("section_summary", payload)
+            findings = json.loads((repo / ".spao" / "findings.latest.json").read_text(encoding="utf-8"))
+            self.assertEqual(findings["findings"][0]["approval_state"], "ready_to_push")
+            self.assertEqual(findings["findings"][0]["push_state"], "pushed")
 
 
 if __name__ == "__main__":

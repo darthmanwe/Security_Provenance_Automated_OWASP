@@ -128,6 +128,8 @@ class FixPlanTests(unittest.TestCase):
             plan_data = json.loads(Path(payload["plan_path"]).read_text(encoding="utf-8"))
             self.assertEqual(plan_data["finding"]["id"], target)
             self.assertTrue(plan_data["line_window"])
+            self.assertEqual(plan_data["retrieval_backend"], "json")
+            self.assertTrue(plan_data["statement_nodes"])
             self.assertTrue(plan_data["recommended_actions"])
 
 
