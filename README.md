@@ -48,7 +48,8 @@
   - `ruff`
   - `bandit`
   - `eslint`
-  - Neo4j is planned as the graph backend target, but this PoC currently persists a local graph artifact first
+  - `neo4j` server access is optional if you want direct graph persistence during ingest
+  - `node` is required for the parser-backed JavaScript and TypeScript indexing path
 
 ### Install
 
@@ -93,6 +94,18 @@ Key edges:
 - `AST_PARENT`
 - `NEXT_LINE`
 
+Optional direct Neo4j persistence:
+
+```bash
+python -m spao ingest --persist-neo4j
+```
+
+Inspect the graph artifact with deterministic helpers:
+
+```bash
+python -m spao graph query --kind symbols --path fixtures/javascript_eval/app.js --line-start 1
+```
+
 ### 3. Normalize scanner findings
 
 Use local SARIF:
@@ -130,6 +143,12 @@ This writes `.spao/fixplans/<finding>.json` with:
 - remediation links
 - recommended next actions
 
+To include grouped file sections in the plan:
+
+```bash
+python -m spao fix plan <finding-id> --group-by file
+```
+
 ### 6. Apply a lightweight approved patch
 
 ```bash
@@ -138,6 +157,16 @@ python -m spao fix apply <finding-id> --approve
 
 Current auto-remediation support:
 - Python `eval()` misuse with `CWE-95` or matching `eval` rule IDs
+- JavaScript and TypeScript literal `eval(...)` misuse that can be rewritten to `JSON.parse(...)`
+- JavaScript and TypeScript literal `new Function(...)()` misuse with JSON-safe return bodies
+
+Grouped approval workflow:
+
+```bash
+python -m spao approvals list
+python -m spao approvals approve <section-id>
+python -m spao fix apply <section-id> --approve
+```
 
 Artifacts written:
 - `.spao/patches/<finding>.diff`
@@ -200,10 +229,9 @@ This keeps the remediation pipeline inspectable and easier to trust during early
 
 ## Limitations
 
-- graph storage is local JSON first; direct Neo4j persistence is not implemented yet
-- JavaScript and TypeScript parsing is lightweight and regex-driven in this PoC
+- graph storage is still local JSON first even when Neo4j persistence is enabled
 - scanner execution beyond SARIF import is intentionally shallow
-- only one heuristic auto-fix family is implemented today
+- automatic remediation remains intentionally narrow and only supports deterministic low-ambiguity rewrite families
 - push behavior depends on local git authentication and remote access
 - policy packs are curated snapshots, not full upstream mirrors
 
@@ -239,8 +267,7 @@ Current coverage includes:
 
 ## Suggested next build steps
 
-- add direct Neo4j persistence and query helpers
-- deepen JS/TS parsing with a real parser layer
-- expand automatic remediation beyond the initial heuristic family
-- add richer grouped approvals and multi-finding sections
 - add Fortify SCA import into the normalized finding schema
+- add richer Neo4j-backed retrieval into fix planning instead of JSON-first graph lookups
+- expand automatic remediation into additional Python, JS, and TS rule families
+- add section-aware verification summaries and push gating

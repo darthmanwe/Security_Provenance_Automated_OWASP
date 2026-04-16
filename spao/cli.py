@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from spao.approval.state import approve_section, assign_sections, list_sections
 from spao.config import SpaoConfig, load_config, save_config
 from spao.fix.apply import apply_fix
 from spao.fix.planner import build_fix_plan, save_fix_plan
@@ -52,10 +53,17 @@ def build_parser() -> argparse.ArgumentParser:
     findings_subparsers = findings_parser.add_subparsers(dest="findings_command")
     findings_subparsers.add_parser("list", help="List normalized findings.")
 
+    approvals_parser = subparsers.add_parser("approvals", help="Approval section operations.")
+    approvals_subparsers = approvals_parser.add_subparsers(dest="approvals_command")
+    approvals_subparsers.add_parser("list", help="List grouped approval sections.")
+    approvals_approve = approvals_subparsers.add_parser("approve", help="Approve a grouped section.")
+    approvals_approve.add_argument("section_id")
+
     fix_parser = subparsers.add_parser("fix", help="Fix planning and application.")
     fix_subparsers = fix_parser.add_subparsers(dest="fix_command")
     fix_plan = fix_subparsers.add_parser("plan", help="Plan a fix for a finding.")
     fix_plan.add_argument("target")
+    fix_plan.add_argument("--group-by", choices=["file"], default=None)
     fix_apply = fix_subparsers.add_parser("apply", help="Apply a fix for a finding.")
     fix_apply.add_argument("target")
     fix_apply.add_argument("--approve", action="store_true")
@@ -135,7 +143,7 @@ def handle_analyze(args: argparse.Namespace) -> int:
             findings.extend(parse_sarif_file(Path(artifact.path)))
             parsed_sources.append(artifact.path)
 
-    findings = enrich_findings(findings)
+    findings = assign_sections(enrich_findings(findings))
     summary = summarize_findings(findings)
     metadata = {
         "sources": parsed_sources,
@@ -164,6 +172,24 @@ def handle_findings_list() -> int:
     return 0
 
 
+def handle_approvals_list() -> int:
+    root = Path.cwd()
+    _, findings = load_findings(root)
+    payload = {"sections": list_sections(findings)}
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
+def handle_approvals_approve(section_id: str) -> int:
+    root = Path.cwd()
+    metadata, findings = load_findings(root)
+    updated = approve_section(findings, section_id)
+    save_findings(root, updated, metadata)
+    payload = {"message": "Approval section updated.", "section_id": section_id}
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
 def handle_graph_query(kind: str, path: str | None, line_start: int | None, line_end: int | None) -> int:
     root = Path.cwd()
     document = load_graph(root)
@@ -178,9 +204,9 @@ def handle_graph_query(kind: str, path: str | None, line_start: int | None, line
     return 0
 
 
-def handle_fix_plan(target: str) -> int:
+def handle_fix_plan(target: str, group_by: str | None) -> int:
     root = Path.cwd()
-    plan = build_fix_plan(root, target)
+    plan = build_fix_plan(root, target, group_by=group_by)
     output_path = save_fix_plan(root, plan)
     payload = {
         "message": "Deterministic evidence bundle created for fix planning.",
@@ -188,6 +214,7 @@ def handle_fix_plan(target: str) -> int:
         "finding_id": plan["finding"]["id"],
         "symbol_count": len(plan["symbol_nodes"]),
         "line_window_count": len(plan["line_window"]),
+        "target_findings": [item["id"] for item in plan.get("target_findings", [])],
     }
     print(json.dumps(payload, indent=2))
     return 0
@@ -232,10 +259,14 @@ def main(argv: list[str] | None = None) -> int:
             return handle_analyze(args)
         if args.command == "findings" and args.findings_command == "list":
             return handle_findings_list()
+        if args.command == "approvals" and args.approvals_command == "list":
+            return handle_approvals_list()
+        if args.command == "approvals" and args.approvals_command == "approve":
+            return handle_approvals_approve(args.section_id)
         if args.command == "graph" and args.graph_command == "query":
             return handle_graph_query(args.kind, args.path, args.line_start, args.line_end)
         if args.command == "fix" and args.fix_command == "plan":
-            return handle_fix_plan(args.target)
+            return handle_fix_plan(args.target, args.group_by)
         if args.command == "fix" and args.fix_command == "apply":
             return handle_fix_apply(args.target, args.approve)
         if args.command == "verify":

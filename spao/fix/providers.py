@@ -18,12 +18,16 @@ class PatchProposal:
 
 
 class LLMProvider:
-    def generate_patch(self, evidence_bundle: dict[str, object]) -> PatchProposal:
+    def generate_patch(
+        self, evidence_bundle: dict[str, object], original_content: str | None = None
+    ) -> PatchProposal:
         raise NotImplementedError
 
 
 class NoopLLMProvider(LLMProvider):
-    def generate_patch(self, evidence_bundle: dict[str, object]) -> PatchProposal:
+    def generate_patch(
+        self, evidence_bundle: dict[str, object], original_content: str | None = None
+    ) -> PatchProposal:
         finding = evidence_bundle["finding"]
         return PatchProposal(
             unified_diff="",
@@ -44,12 +48,14 @@ class HeuristicPatchProvider(LLMProvider):
             JsTsDynamicExecutionRemediationFamily(),
         ]
 
-    def generate_patch(self, evidence_bundle: dict[str, object]) -> PatchProposal:
+    def generate_patch(
+        self, evidence_bundle: dict[str, object], original_content: str | None = None
+    ) -> PatchProposal:
         finding = evidence_bundle["finding"]
         file_path = Path(str(finding["file"]))
         root = Path(str(evidence_bundle["repo_root"]))
         absolute_path = root / file_path
-        original = absolute_path.read_text(encoding="utf-8")
+        original = original_content if original_content is not None else absolute_path.read_text(encoding="utf-8")
         for family in self.families:
             if not family.matches(finding):
                 continue
@@ -91,6 +97,7 @@ class RemediationFamily:
 
 class PythonEvalRemediationFamily(RemediationFamily):
     family_name = "python_eval_literal_eval"
+    EVAL_PATTERN = re.compile(r"(?<![A-Za-z0-9_])eval\(")
 
     def matches(self, finding: dict[str, object]) -> bool:
         rule_id = str(finding["rule_id"]).lower()
@@ -99,7 +106,13 @@ class PythonEvalRemediationFamily(RemediationFamily):
         return file_name.endswith(".py") and ("eval" in rule_id or "CWE-95" in cwe_refs)
 
     def rewrite_content(self, original: str, finding: dict[str, object]) -> str:
-        updated = original.replace("eval(", "literal_eval(")
+        updated = _replace_on_target_line(
+            original,
+            int(finding["line_start"]),
+            lambda line: self.EVAL_PATTERN.sub("literal_eval(", line, count=1),
+        )
+        if updated == original:
+            updated = self.EVAL_PATTERN.sub("literal_eval(", original, count=1)
         if updated == original:
             return original
         if "from ast import literal_eval" not in updated:
@@ -135,6 +148,20 @@ class JsTsDynamicExecutionRemediationFamily(RemediationFamily):
         )
 
     def rewrite_content(self, original: str, finding: dict[str, object]) -> str:
+        updated = _replace_on_target_line(
+            original,
+            int(finding["line_start"]),
+            lambda line: self.EVAL_PATTERN.sub(self._rewrite_eval_match, line, count=1),
+        )
+        if updated != original:
+            return updated
+        updated = _replace_on_target_line(
+            original,
+            int(finding["line_start"]),
+            lambda line: self.FUNCTION_PATTERN.sub(self._rewrite_function_match, line, count=1),
+        )
+        if updated != original:
+            return updated
         updated = self.EVAL_PATTERN.sub(self._rewrite_eval_match, original, count=1)
         if updated != original:
             return updated
@@ -175,3 +202,17 @@ def _ensure_json_literal(raw_text: str) -> None:
         json.loads(raw_text)
     except json.JSONDecodeError as exc:
         raise RuntimeError("Only literal JSON payloads are supported for JS/TS auto-remediation.") from exc
+
+
+def _replace_on_target_line(original: str, line_number: int, replacer) -> str:
+    lines = original.splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return original
+    updated_line = replacer(lines[line_number - 1])
+    if updated_line == lines[line_number - 1]:
+        return original
+    lines[line_number - 1] = updated_line
+    updated = "\n".join(lines)
+    if original.endswith("\n"):
+        updated += "\n"
+    return updated

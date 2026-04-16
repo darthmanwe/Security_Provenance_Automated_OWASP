@@ -25,6 +25,9 @@ class Finding:
     evidence_subgraph_id: str | None = None
     remediation_refs: list[str] = field(default_factory=list)
     approval_state: str = "detected"
+    section_id: str | None = None
+    section_status: str = "pending"
+    grouped_finding_ids: list[str] = field(default_factory=list)
     verification_state: str = "not_run"
     push_state: str = "not_pushed"
 
