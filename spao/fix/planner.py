@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from spao.approval.state import assign_sections, list_sections
 from spao.graph.store import graph_path, load_findings, load_graph
 from spao.sarif.models import Finding
 
@@ -14,9 +15,11 @@ def fixplan_path(root: Path, finding_id: str) -> Path:
     return directory / f"{safe_id}.json"
 
 
-def build_fix_plan(root: Path, target: str) -> dict[str, object]:
+def build_fix_plan(root: Path, target: str, group_by: str | None = None) -> dict[str, object]:
     _, findings = load_findings(root)
-    finding = _find_target(findings, target)
+    findings = assign_sections(findings)
+    target_findings = _resolve_target_findings(findings, target, group_by)
+    finding = target_findings[0]
     graph = load_graph(root)
 
     file_nodes = [
@@ -44,9 +47,17 @@ def build_fix_plan(root: Path, target: str) -> dict[str, object]:
         for item in findings
         if item.file == finding.file and item.id != finding.id
     ]
+    section_summaries = [
+        section
+        for section in list_sections(findings)
+        if section["file"] == finding.file
+    ]
 
     evidence_bundle = {
+        "target": target,
+        "target_type": "section" if target.startswith("section:") else "finding",
         "finding": finding.to_dict(),
+        "target_findings": [item.to_dict() for item in target_findings],
         "graph_path": str(graph_path(root)),
         "file_nodes": [node.to_dict() for node in file_nodes],
         "symbol_nodes": [node.to_dict() for node in symbol_nodes],
@@ -59,6 +70,7 @@ def build_fix_plan(root: Path, target: str) -> dict[str, object]:
         },
         "remediation_refs": finding.remediation_refs,
         "recommended_actions": _recommended_actions(finding),
+        "multi_finding_sections": section_summaries if group_by == "file" or target.startswith("section:") else [],
     }
     return evidence_bundle
 
@@ -76,6 +88,20 @@ def _find_target(findings: list[Finding], target: str) -> Finding:
     if target == "first" and findings:
         return findings[0]
     raise RuntimeError(f"Unable to locate finding target: {target}")
+
+
+def _resolve_target_findings(findings: list[Finding], target: str, group_by: str | None) -> list[Finding]:
+    if target.startswith("section:"):
+        members = [finding for finding in findings if finding.section_id == target]
+        if not members:
+            raise RuntimeError(f"Unable to locate finding target: {target}")
+        return sorted(members, key=lambda item: (item.line_start, item.line_end, item.id))
+
+    finding = _find_target(findings, target)
+    if group_by == "file" and finding.section_id is not None:
+        members = [item for item in findings if item.section_id == finding.section_id]
+        return sorted(members, key=lambda item: (item.line_start, item.line_end, item.id))
+    return [finding]
 
 
 def _recommended_actions(finding: Finding) -> list[str]:
