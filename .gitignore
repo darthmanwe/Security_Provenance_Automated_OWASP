@@ -1,3 +1,4 @@
+.env
 .spao/
 __pycache__/
 *.pyc
