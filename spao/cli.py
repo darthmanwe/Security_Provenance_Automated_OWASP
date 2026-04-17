@@ -5,10 +5,16 @@ import json
 from pathlib import Path
 
 from spao.approval.state import approve_section, assign_sections, list_sections
-from spao.config import SpaoConfig, load_config, save_config
+from spao.config import SpaoConfig, config_path, load_config, save_config
 from spao.fix.apply import apply_fix
 from spao.fix.planner import build_fix_plan, save_fix_plan
 from spao.gitops.push import record_push
+from spao.gitops.service import (
+    current_branch,
+    current_commit,
+    ensure_repo_checkout,
+    normalize_public_github_url,
+)
 from spao.graph.backends import persist_document
 from spao.graph.queries import query_graph
 from spao.graph.store import load_findings, load_graph, save_findings, save_graph
@@ -18,7 +24,6 @@ from spao.sarif.parser import parse_sarif_file
 from spao.scanners.runner import run_scanners
 from spao.triage.service import summarize_findings
 from spao.verify.service import run_verification
-from spao.gitops.service import current_branch
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -76,6 +81,12 @@ def build_parser() -> argparse.ArgumentParser:
     graph_query.add_argument("--line-start", type=int, default=None)
     graph_query.add_argument("--line-end", type=int, default=None)
 
+    repo_parser = subparsers.add_parser("repo", help="Workspace repository intake helpers.")
+    repo_subparsers = repo_parser.add_subparsers(dest="repo_command")
+    repo_pull = repo_subparsers.add_parser("pull", help="Clone or update a public GitHub repo into the workspace.")
+    repo_pull.add_argument("github_url")
+    repo_pull.add_argument("--dest", default=None, help="Optional destination path inside the current workspace.")
+
     subparsers.add_parser("verify", help="Stub for project verification.")
     subparsers.add_parser("push", help="Stub for explicit push workflow.")
     return parser
@@ -98,6 +109,41 @@ def handle_init(args: argparse.Namespace) -> int:
 def handle_stub(command_name: str) -> int:
     payload = {
         "message": f"Command '{command_name}' is scaffolded and will be implemented in later milestones."
+    }
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
+def _resolve_destination(workspace_root: Path, destination: str | None, repo_name: str) -> Path:
+    candidate = workspace_root / "imports" / repo_name if destination is None else Path(destination)
+    target_path = candidate if candidate.is_absolute() else workspace_root / candidate
+    workspace_resolved = workspace_root.resolve()
+    target_resolved = target_path.resolve()
+    if not target_resolved.is_relative_to(workspace_resolved):
+        raise RuntimeError("Destination path must stay inside the current workspace.")
+    return target_resolved
+
+
+def handle_repo_pull(github_url: str, destination: str | None) -> int:
+    workspace_root = Path.cwd()
+    repo_ref = normalize_public_github_url(github_url)
+    target_path = _resolve_destination(workspace_root, destination, repo_ref.repo_name)
+    action = ensure_repo_checkout(workspace_root, repo_ref.repo_url, target_path)
+
+    repo_config_path = config_path(target_path)
+    initialized = not repo_config_path.exists()
+    if initialized:
+        save_config(target_path, SpaoConfig(project_name=repo_ref.repo_name))
+
+    payload = {
+        "message": "Repository is available in the current workspace.",
+        "action": action,
+        "repo_url": repo_ref.repo_url,
+        "repo_path": str(target_path),
+        "config_path": str(repo_config_path),
+        "branch": current_branch(target_path),
+        "commit": current_commit(target_path),
+        "initialized": initialized,
     }
     print(json.dumps(payload, indent=2))
     return 0
@@ -265,6 +311,8 @@ def main(argv: list[str] | None = None) -> int:
             return handle_approvals_approve(args.section_id)
         if args.command == "graph" and args.graph_command == "query":
             return handle_graph_query(args.kind, args.path, args.line_start, args.line_end)
+        if args.command == "repo" and args.repo_command == "pull":
+            return handle_repo_pull(args.github_url, args.dest)
         if args.command == "fix" and args.fix_command == "plan":
             return handle_fix_plan(args.target, args.group_by)
         if args.command == "fix" and args.fix_command == "apply":

@@ -19,6 +19,56 @@
 - applies deterministic heuristic remediations for selected Python, JavaScript, and TypeScript rule families when explicitly approved
 - records verification and push metadata in the `.spao/` runtime directory
 
+## Sample findings and system behavior
+
+The core design goal is to turn raw findings into auditable, graph-backed remediation evidence instead of jumping straight from "scanner said X" to "LLM changed code."
+
+### Example 1: injection finding with GraphRAG-backed evidence
+
+Using the checked-in [docs/sample-eval.sarif](/C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/docs/sample-eval.sarif) fixture against [fixtures/python_eval/app.py](/C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/fixtures/python_eval/app.py), SPAO normalizes a Semgrep `eval()` finding into one record with:
+
+- scanner rule: `python.lang.security.audit.eval-detected.eval-detected`
+- CWE mapping: `CWE-95`
+- OWASP mappings: `A03: Injection` plus mobile/API-family context where applicable
+- ASVS/WSTG mappings: `asvs-5:V5`, `asvs-5:V10`, `wstg:INPV`
+- remediation references: OWASP cheat sheet links
+
+Why GraphRAG matters here:
+
+- the repo is indexed into `File`, `LineSpan`, `Symbol`, and `Statement` nodes before remediation starts
+- the fix planner retrieves the local line window, enclosing symbol, nearby statements, and neighbor edges for the exact finding location
+- the patch step uses that bounded evidence bundle instead of the whole repository, which makes the behavior more inspectable and easier to trust
+
+In other words, GraphRAG is not being used as a buzzword here. It is the mechanism that narrows retrieval to the minimum code context needed for a deterministic, reviewable fix plan.
+
+### Example 2: intake and verification on a real external repo
+
+I used the new `repo pull` capability to pull the public GitHub repo `darthmanwe/Work_Sample` into this workspace:
+
+- clone path: [imports/Work_Sample](C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/imports/Work_Sample)
+- detected branch/commit: `main` at `0ebb8aa56a74f362d454c93e2d08b8191f1d8be1`
+- auto-initialized SPAO config: [imports/Work_Sample/.spao/config.json](C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/imports/Work_Sample/.spao/config.json)
+
+That repo does not ship a `tests/` folder. Instead of failing with `NO TESTS RAN`, SPAO discovered the best available verification path and executed the notebook workflow:
+
+- chosen strategy: `notebook_execute`
+- chosen command: `jupyter nbconvert --to notebook --execute main.ipynb ...`
+- verification artifact: [main.verified.ipynb](C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/imports/Work_Sample/.spao/artifacts/main.verified.ipynb)
+- verification record: [verify.latest.json](C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/imports/Work_Sample/.spao/verify.latest.json)
+
+Operational significance:
+
+- the intake path can onboard an unfamiliar public repo automatically
+- verification is capability-aware rather than hardcoded to one repository layout
+- the current boundary is explicit: GraphRAG ingestion is strongest on Python/JS/TS source repos, while notebook-heavy repos are currently better served by adaptive verification than by code graph extraction alone
+
+### Engineering takeaways
+
+- security engineering: findings are normalized into OWASP/CWE/ASVS/WSTG language instead of left as tool-specific noise
+- retrieval design: graph-backed local context is used to make remediation narrower and more explainable
+- automation quality: the workflow now handles public repo intake, idempotent re-runs, and repos without a `tests/` folder
+- capability adaptation: when the imported repo did not match the original assumption set, the verifier was extended to discover a sensible strategy instead of forcing every repo into one template
+
 ## Repository layout
 
 - `spao/cli.py`: CLI entrypoint
@@ -61,6 +111,22 @@ Or run directly from the repo:
 
 ```bash
 python -m spao --help
+```
+
+## Workspace intake
+
+To pull a public GitHub repo into the current workspace and make it SPAO-ready:
+
+```bash
+python -m spao repo pull https://github.com/<owner>/<repo>
+```
+
+This clones or updates the repo under `imports/<repo>` in the current working directory and ensures the imported repo contains `.spao/config.json`.
+
+You can override the destination as long as it stays inside the current workspace:
+
+```bash
+python -m spao repo pull https://github.com/<owner>/<repo> --dest imports/custom-repo
 ```
 
 ## CLI workflow
@@ -191,14 +257,21 @@ python -m spao verify
 This runs:
 
 ```bash
-python -m unittest discover -s tests -v
+python -m spao verify
 ```
 
 And writes:
 
 - `.spao/verify.latest.json`
 
-Verification records a section-aware summary and upgrades patched sections to verified status when the test run passes.
+Verification discovers the best available repo-local validation command in this order:
+
+- `python -m unittest discover -s tests -v` when a `tests/` directory exists
+- `npm test` when a repo ships a non-placeholder Node test script
+- `python -m pytest -q` or `python -m unittest discover -v` for Python repos with test files but no `tests/` directory
+- `jupyter nbconvert --execute ...` for notebook-centric repos with no conventional test layout
+
+Verification records a section-aware summary, includes the discovered command and strategy in `.spao/verify.latest.json`, and upgrades patched sections to verified status when the chosen validation run passes.
 
 ### 8. Push and record push metadata
 
@@ -282,12 +355,14 @@ python -m unittest discover -s tests -v
 
 Latest local run on April 16, 2026:
 
-- `16/16` tests passing
+- `31/31` tests passing
 - completed in about `10s`
-- exercises `init`, `ingest`, `analyze`, `graph query`, `fix plan`, `fix apply`, `approvals`, `verify`, and `push`
+- exercises `repo pull`, `init`, `ingest`, `analyze`, `graph query`, `fix plan`, `fix apply`, `approvals`, `verify`, and `push`
 
 Highlighted behaviors covered by the suite:
 
+- public GitHub workspace intake with managed `imports/` destinations, idempotent update behavior, and destination safety checks
+- verification command discovery for repos without a `tests/` directory, including notebook fallback
 - parser-backed graph indexing across Python, JavaScript, and TypeScript symbols and statements
 - SARIF normalization with CWE, OWASP Top 10, ASVS, WSTG, and remediation-link enrichment
 - Neo4j persistence and retrieval contracts for graph-backed fix planning

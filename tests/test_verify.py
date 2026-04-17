@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from spao.gitops.push import record_push
 from spao.gitops.service import GitResult
+from spao.verify.service import discover_verification_command, run_verification
 
 
 SARIF_FIXTURE = {
@@ -49,6 +50,84 @@ SARIF_FIXTURE = {
 
 
 class VerifyCommandTests(unittest.TestCase):
+    def test_discover_verification_command_uses_python_discovery_without_tests_dir(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            repo = Path(tmp_dir) / "demo"
+            repo.mkdir()
+            (repo / "test_smoke.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+
+            with patch("spao.verify.service.shutil.which", return_value=None):
+                verification = discover_verification_command(repo)
+
+            self.assertIsNotNone(verification)
+            self.assertEqual(verification.strategy, "unittest_discovery")
+            self.assertEqual(verification.command, [sys.executable, "-m", "unittest", "discover", "-v"])
+
+    def test_discover_verification_command_prefers_notebook_when_no_tests_dir(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            repo = Path(tmp_dir) / "demo"
+            repo.mkdir()
+            (repo / "main.ipynb").write_text("{}", encoding="utf-8")
+
+            with patch("spao.verify.service.shutil.which") as which:
+                which.side_effect = lambda name: "jupyter" if name == "jupyter" else None
+                verification = discover_verification_command(repo)
+
+            self.assertIsNotNone(verification)
+            self.assertEqual(verification.strategy, "notebook_execute")
+            self.assertEqual(verification.command[:5], ["jupyter", "nbconvert", "--to", "notebook", "--execute"])
+            self.assertIn("main.verified.ipynb", verification.command)
+
+    def test_verify_uses_notebook_fallback_when_no_tests_dir(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            repo = Path(tmp_dir) / "demo"
+            repo.mkdir()
+            (repo / "main.ipynb").write_text("{}", encoding="utf-8")
+            (repo / ".spao").mkdir()
+            (repo / ".spao" / "findings.latest.json").write_text(
+                json.dumps({"metadata": {"summary": {"total": 0}}, "findings": []}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            with patch("spao.verify.service.subprocess.run") as subprocess_run:
+                subprocess_run.return_value = subprocess.CompletedProcess(
+                    args=["jupyter", "nbconvert"],
+                    returncode=0,
+                    stdout="executed",
+                    stderr="",
+                )
+                with patch("spao.verify.service.shutil.which") as which:
+                    which.side_effect = lambda name: "jupyter" if name == "jupyter" else None
+                    payload = run_verification(repo)
+
+            self.assertTrue(payload["passed"])
+            self.assertEqual(payload["strategy"], "notebook_execute")
+            self.assertIn("jupyter nbconvert --to notebook --execute", payload["command"])
+            self.assertEqual(
+                subprocess_run.call_args.kwargs["env"]["JUPYTER_RUNTIME_DIR"],
+                str(repo / ".spao" / "runtime"),
+            )
+            self.assertEqual(
+                subprocess_run.call_args.kwargs["env"]["JUPYTER_ALLOW_INSECURE_WRITES"],
+                "true",
+            )
+
+    def test_verify_reports_missing_strategy_when_repo_has_no_tests_or_notebooks(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            repo = Path(tmp_dir) / "demo"
+            repo.mkdir()
+            (repo / ".spao").mkdir()
+            (repo / ".spao" / "findings.latest.json").write_text(
+                json.dumps({"metadata": {"summary": {"total": 0}}, "findings": []}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            payload = run_verification(repo)
+
+            self.assertFalse(payload["passed"])
+            self.assertEqual(payload["strategy"], "none")
+            self.assertIn("No verification command discovered", payload["stderr"])
+
     def test_verify_updates_finding_state(self) -> None:
         with TemporaryDirectory() as tmp_dir:
             repo = Path(tmp_dir) / "demo"
