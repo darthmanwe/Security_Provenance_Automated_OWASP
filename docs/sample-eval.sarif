@@ -1,0 +1,46 @@
+{
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "semgrep",
+          "rules": [
+            {
+              "id": "python.lang.security.audit.eval-detected.eval-detected",
+              "name": "eval detected",
+              "properties": {
+                "tags": [
+                  "CWE-95",
+                  "owasp-top-10:a03-injection"
+                ]
+              },
+              "helpUri": "https://cheatsheetseries.owasp.org/"
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "python.lang.security.audit.eval-detected.eval-detected",
+          "level": "error",
+          "message": {
+            "text": "Avoid eval()."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "fixtures/python_eval/app.py"
+                },
+                "region": {
+                  "startLine": 2,
+                  "endLine": 2
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

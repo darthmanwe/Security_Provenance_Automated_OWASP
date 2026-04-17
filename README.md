@@ -34,8 +34,8 @@
 - `spao/gitops/`: git-aware push tracking
 - `spao/verify/`: verification workflow
 - `tests/`: end-to-end CLI and workflow tests
-- `fixtures/`: intentionally vulnerable sample projects for future demos and scanner experiments
-- `docs/`: sample command transcript and onboarding notes
+- `fixtures/`: intentionally vulnerable sample projects for local demos and scanner experiments
+- `docs/`: reproducible walkthroughs and sample SARIF inputs
 
 ## Setup
 
@@ -80,6 +80,7 @@ python -m spao ingest
 ```
 
 This writes `.spao/graph.latest.json` with:
+
 - `Repo`
 - `Snapshot`
 - `File`
@@ -88,6 +89,7 @@ This writes `.spao/graph.latest.json` with:
 - `Statement`
 
 Key edges:
+
 - `CONTAINS`
 - `HAS_LINE`
 - `DECLARES`
@@ -135,6 +137,7 @@ python -m spao fix plan <finding-id>
 ```
 
 This writes `.spao/fixplans/<finding>.json` with:
+
 - the original finding
 - nearby line window
 - enclosing symbols
@@ -159,6 +162,7 @@ python -m spao fix apply <finding-id> --approve
 ```
 
 Current auto-remediation support:
+
 - Python `eval()` misuse with `CWE-95` or matching `eval` rule IDs
 - Python `yaml.load(...)` unsafe deserialization findings that can be rewritten to `yaml.safe_load(...)`
 - JavaScript and TypeScript literal `eval(...)` misuse that can be rewritten to `JSON.parse(...)`
@@ -174,6 +178,7 @@ python -m spao fix apply <section-id> --approve
 ```
 
 Artifacts written:
+
 - `.spao/patches/<finding>.diff`
 - `.spao/patches/<finding>.json`
 
@@ -190,9 +195,10 @@ python -m unittest discover -s tests -v
 ```
 
 And writes:
+
 - `.spao/verify.latest.json`
 
-Verification now records a section-aware summary and upgrades patched sections to verified status when the test run passes.
+Verification records a section-aware summary and upgrades patched sections to verified status when the test run passes.
 
 ### 8. Push and record push metadata
 
@@ -201,13 +207,14 @@ python -m spao push
 ```
 
 This pushes the current branch and writes:
+
 - `.spao/push.latest.json`
 
-Push is now gated when any approved or applied section has not yet passed verification.
+Push is gated when any approved or applied section has not yet passed verification.
 
 ## Current OWASP policy model
 
-This PoC does not pretend OWASP publishes one single universal “full vulnerability list.” Instead, it uses a layered policy model:
+This PoC does not pretend OWASP publishes one single universal "full vulnerability list." Instead, it uses a layered policy model:
 
 - web risk categories from OWASP Top 10
 - API risk categories from OWASP API Security Top 10:2023
@@ -218,6 +225,7 @@ This PoC does not pretend OWASP publishes one single universal “full vulnerabi
 - CWE IDs as the shared normalization key
 
 That means the tool can translate one finding into multiple useful views:
+
 - scanner rule
 - CWE
 - OWASP risk category
@@ -227,7 +235,7 @@ That means the tool can translate one finding into multiple useful views:
 
 ## GraphRAG approach in this PoC
 
-The “GraphRAG” part of this repo is intentionally deterministic:
+The "GraphRAG" part of this repo is intentionally deterministic:
 
 - the graph is built from the codebase first
 - findings are detected by scanners, not invented by the model
@@ -256,7 +264,13 @@ These are meant for local scanning, graph inspection, and future demo runs.
 
 ## Example walkthrough
 
-See [docs/sample-session.md](/C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/docs/sample-session.md) for a concrete sequence of commands and the expected artifact flow.
+See [docs/sample-session.md](/C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/docs/sample-session.md) for a concrete repo-local walkthrough that uses [docs/sample-eval.sarif](/C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/docs/sample-eval.sarif) and the checked-in vulnerable fixtures.
+
+Walkthrough smoke test on April 16, 2026:
+
+- `graph query` returned the expected `run` symbol for `fixtures/python_eval/app.py`
+- `analyze --sarif docs/sample-eval.sarif` produced `1` normalized finding
+- `fix plan` generated a single-target evidence bundle under `.spao/fixplans/`
 
 ## Test suite
 
@@ -266,13 +280,24 @@ Run:
 python -m unittest discover -s tests -v
 ```
 
-Current coverage includes:
-- `init`
-- `ingest`
-- `analyze`
-- `fix plan`
-- `fix apply`
-- `verify`
+Latest local run on April 16, 2026:
+
+- `16/16` tests passing
+- completed in about `10s`
+- exercises `init`, `ingest`, `analyze`, `graph query`, `fix plan`, `fix apply`, `approvals`, `verify`, and `push`
+
+Highlighted behaviors covered by the suite:
+
+- parser-backed graph indexing across Python, JavaScript, and TypeScript symbols and statements
+- SARIF normalization with CWE, OWASP Top 10, ASVS, WSTG, and remediation-link enrichment
+- Neo4j persistence and retrieval contracts for graph-backed fix planning
+- grouped approval sections and atomic multi-finding apply flows
+- deterministic remediations for Python `eval`, Python `yaml.load`, JS literal `eval`, JS literal `new Function`, and TS string timer callbacks
+- safe refusal when a JavaScript `eval(...)` target is ambiguous
+- verification summaries that upgrade section state only after tests pass
+- push gating that blocks branch publication until approved or applied sections have been verified
+
+If you want a quick proof run without supplying your own scanner output, the documented walkthrough in [docs/sample-session.md](/C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/docs/sample-session.md) uses the committed [docs/sample-eval.sarif](/C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/docs/sample-eval.sarif) fixture.
 
 ## Suggested next build steps
 
