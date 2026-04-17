@@ -46,6 +46,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Also persist the generated graph into Neo4j using local SPAO config.",
     )
+    ingest_parser.add_argument(
+        "--embed",
+        action="store_true",
+        help="Generate embeddings for graph nodes (enables GraphRAG retrieval).",
+    )
     analyze_parser = subparsers.add_parser("analyze", help="Run or import scanner results.")
     analyze_parser.add_argument(
         "--sarif",
@@ -149,7 +154,7 @@ def handle_repo_pull(github_url: str, destination: str | None) -> int:
     return 0
 
 
-def handle_ingest(persist_neo4j: bool) -> int:
+def handle_ingest(persist_neo4j: bool, embed: bool = False) -> int:
     root = Path.cwd()
     document = build_graph(root)
     output_path = save_graph(root, document)
@@ -162,13 +167,31 @@ def handle_ingest(persist_neo4j: bool) -> int:
             "node_count": result.node_count,
             "edge_count": result.edge_count,
         }
-    payload = {
+    embedding_info: dict[str, object] | None = None
+    if embed:
+        from spao.graphrag.embeddings import embed_graph
+        from spao.graphrag.store import save_embeddings, persist_embeddings_to_neo4j
+
+        embeddings = embed_graph(document)
+        emb_path = save_embeddings(root, embeddings)
+        neo4j_count = 0
+        if persist_neo4j:
+            neo4j_count = persist_embeddings_to_neo4j(root, embeddings)
+        embedding_info = {
+            "embeddings_path": str(emb_path),
+            "embedded_nodes": len(embeddings),
+            "dimension": len(embeddings[0].vector) if embeddings else 0,
+            "neo4j_synced": neo4j_count,
+        }
+    payload: dict[str, object] = {
         "message": "Repository indexed into the local graph artifact.",
         "graph_path": str(output_path),
         "metadata": document.metadata,
     }
     if persistence is not None:
         payload["persistence"] = persistence
+    if embedding_info is not None:
+        payload["embeddings"] = embedding_info
     print(json.dumps(payload, indent=2))
     return 0
 
@@ -300,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "init":
             return handle_init(args)
         if args.command == "ingest":
-            return handle_ingest(args.persist_neo4j)
+            return handle_ingest(args.persist_neo4j, embed=args.embed)
         if args.command == "analyze":
             return handle_analyze(args)
         if args.command == "findings" and args.findings_command == "list":
