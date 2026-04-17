@@ -212,6 +212,99 @@ class FixApplyTests(unittest.TestCase):
             self.assertIn('JSON.parse("{\\"answer\\": 42}")', updated)
             self.assertEqual(payload["remediation_family"], "js_ts_dynamic_execution_literals")
 
+    def test_fix_apply_rewrites_js_new_function_literal_payload(self) -> None:
+        js_fixture = {
+            "runs": [
+                {
+                    "tool": {
+                        "driver": {
+                            "name": "semgrep",
+                            "rules": [
+                                {
+                                    "id": "javascript.lang.security.audit.new-function-detected.new-function-detected",
+                                    "name": "new Function detected",
+                                    "properties": {"tags": ["CWE-95", "owasp-top-10:a03-injection"]},
+                                    "helpUri": "https://cheatsheetseries.owasp.org/",
+                                }
+                            ],
+                        }
+                    },
+                    "results": [
+                        {
+                            "ruleId": "javascript.lang.security.audit.new-function-detected.new-function-detected",
+                            "level": "error",
+                            "message": {"text": "Avoid new Function()."},
+                            "locations": [
+                                {
+                                    "physicalLocation": {
+                                        "artifactLocation": {"uri": "app.js"},
+                                        "region": {"startLine": 2, "endLine": 2},
+                                    }
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ]
+        }
+
+        with TemporaryDirectory() as tmp_dir:
+            repo = Path(tmp_dir) / "demo"
+            repo.mkdir()
+            app_path = repo / "app.js"
+            app_path.write_text(
+                textwrap.dedent(
+                    """
+                    export function run() {
+                        return new Function('return {"answer": 42}')()
+                    }
+                    """
+                ).strip()
+                + "\n",
+                encoding="utf-8",
+            )
+            fixture_path = repo / "fixture.sarif"
+            fixture_path.write_text(json.dumps(js_fixture), encoding="utf-8")
+
+            subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+            subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.email", "tests@example.com"], cwd=repo, check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo, check=True, capture_output=True)
+            subprocess.run(["git", "commit", "-m", "seed"], cwd=repo, check=True, capture_output=True)
+
+            env = dict(os.environ)
+            env["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent)
+
+            for command in (
+                [sys.executable, "-m", "spao", "init", "--project-name", "demo"],
+                [sys.executable, "-m", "spao", "ingest"],
+                [sys.executable, "-m", "spao", "analyze", "--sarif", str(fixture_path)],
+            ):
+                subprocess.run(
+                    command,
+                    cwd=repo,
+                    check=True,
+                    capture_output=True,
+                    env=env,
+                    text=True,
+                )
+
+            findings = json.loads((repo / ".spao" / "findings.latest.json").read_text(encoding="utf-8"))
+            target = findings["findings"][0]["id"]
+            result = subprocess.run(
+                [sys.executable, "-m", "spao", "fix", "apply", target, "--approve"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            payload = json.loads(result.stdout)
+            updated = app_path.read_text(encoding="utf-8")
+            self.assertIn('JSON.parse("{\\"answer\\": 42}")', updated)
+            self.assertEqual(payload["remediation_family"], "js_ts_dynamic_execution_literals")
+
     def test_fix_apply_refuses_ambiguous_js_eval(self) -> None:
         js_fixture = {
             "runs": [

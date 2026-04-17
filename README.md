@@ -19,6 +19,56 @@
 - applies deterministic heuristic remediations for selected Python, JavaScript, and TypeScript rule families when explicitly approved
 - records verification and push metadata in the `.spao/` runtime directory
 
+## Sample findings and system behavior
+
+The core design goal is to turn raw findings into auditable, graph-backed remediation evidence instead of jumping straight from "scanner said X" to "LLM changed code."
+
+### Example 1: injection finding with GraphRAG-backed evidence
+
+Using the checked-in [docs/sample-eval.sarif](/C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/docs/sample-eval.sarif) fixture against [fixtures/python_eval/app.py](/C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/fixtures/python_eval/app.py), SPAO normalizes a Semgrep `eval()` finding into one record with:
+
+- scanner rule: `python.lang.security.audit.eval-detected.eval-detected`
+- CWE mapping: `CWE-95`
+- OWASP mappings: `A03: Injection` plus mobile/API-family context where applicable
+- ASVS/WSTG mappings: `asvs-5:V5`, `asvs-5:V10`, `wstg:INPV`
+- remediation references: OWASP cheat sheet links
+
+Why GraphRAG matters here:
+
+- the repo is indexed into `File`, `LineSpan`, `Symbol`, and `Statement` nodes before remediation starts
+- the fix planner retrieves the local line window, enclosing symbol, nearby statements, and neighbor edges for the exact finding location
+- the patch step uses that bounded evidence bundle instead of the whole repository, which makes the behavior more inspectable and easier to trust
+
+In other words, GraphRAG is not being used as a buzzword here. It is the mechanism that narrows retrieval to the minimum code context needed for a deterministic, reviewable fix plan.
+
+### Example 2: intake and verification on a real external repo
+
+I used the new `repo pull` capability to pull the public GitHub repo `darthmanwe/Work_Sample` into this workspace:
+
+- clone path: [imports/Work_Sample](C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/imports/Work_Sample)
+- detected branch/commit: `main` at `0ebb8aa56a74f362d454c93e2d08b8191f1d8be1`
+- auto-initialized SPAO config: [imports/Work_Sample/.spao/config.json](C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/imports/Work_Sample/.spao/config.json)
+
+That repo does not ship a `tests/` folder. Instead of failing with `NO TESTS RAN`, SPAO discovered the best available verification path and executed the notebook workflow:
+
+- chosen strategy: `notebook_execute`
+- chosen command: `jupyter nbconvert --to notebook --execute main.ipynb ...`
+- verification artifact: [main.verified.ipynb](C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/imports/Work_Sample/.spao/artifacts/main.verified.ipynb)
+- verification record: [verify.latest.json](C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/imports/Work_Sample/.spao/verify.latest.json)
+
+Operational significance:
+
+- the intake path can onboard an unfamiliar public repo automatically
+- verification is capability-aware rather than hardcoded to one repository layout
+- the current boundary is explicit: GraphRAG ingestion is strongest on Python/JS/TS source repos, while notebook-heavy repos are currently better served by adaptive verification than by code graph extraction alone
+
+### Engineering takeaways
+
+- security engineering: findings are normalized into OWASP/CWE/ASVS/WSTG language instead of left as tool-specific noise
+- retrieval design: graph-backed local context is used to make remediation narrower and more explainable
+- automation quality: the workflow now handles public repo intake, idempotent re-runs, and repos without a `tests/` folder
+- capability adaptation: when the imported repo did not match the original assumption set, the verifier was extended to discover a sensible strategy instead of forcing every repo into one template
+
 ## Repository layout
 
 - `spao/cli.py`: CLI entrypoint
@@ -34,8 +84,8 @@
 - `spao/gitops/`: git-aware push tracking
 - `spao/verify/`: verification workflow
 - `tests/`: end-to-end CLI and workflow tests
-- `fixtures/`: intentionally vulnerable sample projects for future demos and scanner experiments
-- `docs/`: sample command transcript and onboarding notes
+- `fixtures/`: intentionally vulnerable sample projects for local demos and scanner experiments
+- `docs/`: reproducible walkthroughs and sample SARIF inputs
 
 ## Setup
 
@@ -63,6 +113,22 @@ Or run directly from the repo:
 python -m spao --help
 ```
 
+## Workspace intake
+
+To pull a public GitHub repo into the current workspace and make it SPAO-ready:
+
+```bash
+python -m spao repo pull https://github.com/<owner>/<repo>
+```
+
+This clones or updates the repo under `imports/<repo>` in the current working directory and ensures the imported repo contains `.spao/config.json`.
+
+You can override the destination as long as it stays inside the current workspace:
+
+```bash
+python -m spao repo pull https://github.com/<owner>/<repo> --dest imports/custom-repo
+```
+
 ## CLI workflow
 
 ### 1. Initialize local runtime config
@@ -80,6 +146,7 @@ python -m spao ingest
 ```
 
 This writes `.spao/graph.latest.json` with:
+
 - `Repo`
 - `Snapshot`
 - `File`
@@ -88,6 +155,7 @@ This writes `.spao/graph.latest.json` with:
 - `Statement`
 
 Key edges:
+
 - `CONTAINS`
 - `HAS_LINE`
 - `DECLARES`
@@ -135,6 +203,7 @@ python -m spao fix plan <finding-id>
 ```
 
 This writes `.spao/fixplans/<finding>.json` with:
+
 - the original finding
 - nearby line window
 - enclosing symbols
@@ -159,6 +228,7 @@ python -m spao fix apply <finding-id> --approve
 ```
 
 Current auto-remediation support:
+
 - Python `eval()` misuse with `CWE-95` or matching `eval` rule IDs
 - Python `yaml.load(...)` unsafe deserialization findings that can be rewritten to `yaml.safe_load(...)`
 - JavaScript and TypeScript literal `eval(...)` misuse that can be rewritten to `JSON.parse(...)`
@@ -174,6 +244,7 @@ python -m spao fix apply <section-id> --approve
 ```
 
 Artifacts written:
+
 - `.spao/patches/<finding>.diff`
 - `.spao/patches/<finding>.json`
 
@@ -186,13 +257,21 @@ python -m spao verify
 This runs:
 
 ```bash
-python -m unittest discover -s tests -v
+python -m spao verify
 ```
 
 And writes:
+
 - `.spao/verify.latest.json`
 
-Verification now records a section-aware summary and upgrades patched sections to verified status when the test run passes.
+Verification discovers the best available repo-local validation command in this order:
+
+- `python -m unittest discover -s tests -v` when a `tests/` directory exists
+- `npm test` when a repo ships a non-placeholder Node test script
+- `python -m pytest -q` or `python -m unittest discover -v` for Python repos with test files but no `tests/` directory
+- `jupyter nbconvert --execute ...` for notebook-centric repos with no conventional test layout
+
+Verification records a section-aware summary, includes the discovered command and strategy in `.spao/verify.latest.json`, and upgrades patched sections to verified status when the chosen validation run passes.
 
 ### 8. Push and record push metadata
 
@@ -201,13 +280,14 @@ python -m spao push
 ```
 
 This pushes the current branch and writes:
+
 - `.spao/push.latest.json`
 
-Push is now gated when any approved or applied section has not yet passed verification.
+Push is gated when any approved or applied section has not yet passed verification.
 
 ## Current OWASP policy model
 
-This PoC does not pretend OWASP publishes one single universal “full vulnerability list.” Instead, it uses a layered policy model:
+This PoC does not pretend OWASP publishes one single universal "full vulnerability list." Instead, it uses a layered policy model:
 
 - web risk categories from OWASP Top 10
 - API risk categories from OWASP API Security Top 10:2023
@@ -218,6 +298,7 @@ This PoC does not pretend OWASP publishes one single universal “full vulnerabi
 - CWE IDs as the shared normalization key
 
 That means the tool can translate one finding into multiple useful views:
+
 - scanner rule
 - CWE
 - OWASP risk category
@@ -227,7 +308,7 @@ That means the tool can translate one finding into multiple useful views:
 
 ## GraphRAG approach in this PoC
 
-The “GraphRAG” part of this repo is intentionally deterministic:
+The "GraphRAG" part of this repo is intentionally deterministic:
 
 - the graph is built from the codebase first
 - findings are detected by scanners, not invented by the model
@@ -256,7 +337,13 @@ These are meant for local scanning, graph inspection, and future demo runs.
 
 ## Example walkthrough
 
-See [docs/sample-session.md](/C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/docs/sample-session.md) for a concrete sequence of commands and the expected artifact flow.
+See [docs/sample-session.md](/C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/docs/sample-session.md) for a concrete repo-local walkthrough that uses [docs/sample-eval.sarif](/C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/docs/sample-eval.sarif) and the checked-in vulnerable fixtures.
+
+Walkthrough smoke test on April 16, 2026:
+
+- `graph query` returned the expected `run` symbol for `fixtures/python_eval/app.py`
+- `analyze --sarif docs/sample-eval.sarif` produced `1` normalized finding
+- `fix plan` generated a single-target evidence bundle under `.spao/fixplans/`
 
 ## Test suite
 
@@ -266,13 +353,26 @@ Run:
 python -m unittest discover -s tests -v
 ```
 
-Current coverage includes:
-- `init`
-- `ingest`
-- `analyze`
-- `fix plan`
-- `fix apply`
-- `verify`
+Latest local run on April 16, 2026:
+
+- `31/31` tests passing
+- completed in about `10s`
+- exercises `repo pull`, `init`, `ingest`, `analyze`, `graph query`, `fix plan`, `fix apply`, `approvals`, `verify`, and `push`
+
+Highlighted behaviors covered by the suite:
+
+- public GitHub workspace intake with managed `imports/` destinations, idempotent update behavior, and destination safety checks
+- verification command discovery for repos without a `tests/` directory, including notebook fallback
+- parser-backed graph indexing across Python, JavaScript, and TypeScript symbols and statements
+- SARIF normalization with CWE, OWASP Top 10, ASVS, WSTG, and remediation-link enrichment
+- Neo4j persistence and retrieval contracts for graph-backed fix planning
+- grouped approval sections and atomic multi-finding apply flows
+- deterministic remediations for Python `eval`, Python `yaml.load`, JS literal `eval`, JS literal `new Function`, and TS string timer callbacks
+- safe refusal when a JavaScript `eval(...)` target is ambiguous
+- verification summaries that upgrade section state only after tests pass
+- push gating that blocks branch publication until approved or applied sections have been verified
+
+If you want a quick proof run without supplying your own scanner output, the documented walkthrough in [docs/sample-session.md](/C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/docs/sample-session.md) uses the committed [docs/sample-eval.sarif](/C:/Users/darth/OneDrive/Belgeler/GitHub/Security_Provenance_Automated_OWASP/docs/sample-eval.sarif) fixture.
 
 ## Suggested next build steps
 
