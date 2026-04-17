@@ -100,10 +100,21 @@ def _recommended_actions(finding: Finding) -> list[str]:
 
 
 def _retrieve_graph_context(root: Path, finding: Finding) -> dict[str, object]:
+    graphrag_context = _retrieve_graph_context_from_graphrag(root, finding)
+    if graphrag_context is not None:
+        return graphrag_context
     neo4j_context = _retrieve_graph_context_from_neo4j(root, finding)
     if neo4j_context is not None:
         return neo4j_context
     return _retrieve_graph_context_from_json(root, finding)
+
+
+def _retrieve_graph_context_from_graphrag(root: Path, finding: Finding) -> dict[str, object] | None:
+    try:
+        from spao.graphrag.retrieval import retrieve_graphrag_context
+    except ImportError:
+        return None
+    return retrieve_graphrag_context(root, finding)
 
 
 def _retrieve_graph_context_from_json(root: Path, finding: Finding) -> dict[str, object]:
