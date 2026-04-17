@@ -39,7 +39,7 @@ Why GraphRAG matters here:
 - the fix planner retrieves the local line window, enclosing symbol, nearby statements, and neighbor edges for the exact finding location
 - the patch step uses that bounded evidence bundle instead of the whole repository, which makes the behavior more inspectable and easier to trust
 
-In other words, GraphRAG is not being used as a buzzword here. It is the mechanism that narrows retrieval to the minimum code context needed for a deterministic, reviewable fix plan.
+GraphRAG is the mechanism that narrows retrieval to the minimum code context needed for a deterministic, reviewable fix plan. 
 
 ### Example 2: intake and verification on a real external repo
 
